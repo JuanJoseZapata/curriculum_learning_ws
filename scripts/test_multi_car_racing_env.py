@@ -1,9 +1,4 @@
-import sys
-sys.path.append("..")
-
-print(sys.path)
-
-from multi_car_racing.gym_multi_car_racing import multi_car_racing_pyglet as multi_car_racing
+from gym_multi_car_racing import multi_car_racing
 
 from tianshou.env.pettingzoo_env import PettingZooEnv
 from tianshou.env import DummyVectorEnv
