@@ -1,4 +1,5 @@
 from tianshou.env.pettingzoo_env import PettingZooEnv
+from pettingzoo.utils import parallel_to_aec
 
 from gym_multi_car_racing import multi_car_racing
 
@@ -9,7 +10,7 @@ import torch
 
 import time
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 from tianshou.data import Collector, VectorReplayBuffer
 from tianshou.env import DummyVectorEnv, ShmemVectorEnv, SubprocVectorEnv
@@ -36,27 +37,50 @@ n_agents = 1
 # Number of steps per epoch
 step_per_epoch = 10000
 # Number of steps per collect
-step_per_collect = 400
+step_per_collect = 800
 # Number of epochs
-max_epoch = 50
-# Max grad norm
+max_epoch = 100
+# PPO parameters
 max_grad_norm = 0.5
+gamma = 0.99
+eps_clip = 0.2
+vf_coef = 0.5
+ent_coef = 0.0
+rew_norm = True
+norm_adv = True
+recompute_adv = 0
+value_clip = True
+gae_lambda = 0.95
 # Initial learning rate
 lr = 2e-4
+# Train num
+train_num = 4
+# Test num
+test_num = 4
 # Frame stack
-frame_stack = 4
+frame_stack = 1
+# Grayscale
+grayscale = False
 
 # Resume training
 run_id = None
 
 # Policy name
 policy_name_load = None
-policy_name_save = "ppo_one-car_rgb_4-frames_lr2e-4"
+policy_name_save = "ppo_1-car_rgb_1-frame_lr2e-4_slow-penalty_4-envs"
 
-def _get_env():
+def _get_train_env():
     """This function is needed to provide callables for DummyVectorEnv."""
     env = multi_car_racing.env(n_agents=n_agents, use_random_direction=True,
                                render_mode="state_pixels", discrete_action_space=False)
+    if frame_stack > 1:
+        env = ss.frame_stack_v1(env, frame_stack)
+    return PettingZooEnv(env)
+
+def _get_test_env():
+    """This function is needed to provide callables for DummyVectorEnv."""
+    env = multi_car_racing.env(n_agents=n_agents, use_random_direction=True,
+                               render_mode="human", discrete_action_space=False)
     if frame_stack > 1:
         env = ss.frame_stack_v1(env, frame_stack)
     return PettingZooEnv(env)
@@ -69,78 +93,84 @@ def _get_env_render():
         env = ss.frame_stack_v1(env, frame_stack)
     return PettingZooEnv(env)
 
-def dist(*logits):
-        return Independent(Normal(*logits), 1)
-
 def _get_agents(
-    agent_learn: Optional[BasePolicy] = None,
-    agent_opponent: Optional[BasePolicy] = None,
+    agents: Optional[List[BasePolicy]] = None,
     optim: Optional[torch.optim.Optimizer] = None,
 ) -> Tuple[BasePolicy, torch.optim.Optimizer, list]:
-    env = _get_env()
-    agents = []
-    optims = []
-    for agent_id in env.agents:
-        print(agent_id)
-        observation_space = env.observation_space['observation'] if isinstance(
-        env.observation_space, gym.spaces.Dict
-        ) else env.observation_space
-        action_shape = env.action_space.shape or env.action_space.n
-        max_action = env.action_space.high[0]
-        device = "cuda"
-        print("Observation space:", observation_space)
-        print("Action space:", env.action_space)
+    env = _get_train_env()
+    observation_space = env.observation_space['observation'] if isinstance(
+    env.observation_space, gym.spaces.Dict
+    ) else env.observation_space
+    action_shape = env.action_space.shape or env.action_space.n
+    max_action = env.action_space.high[0]
+    device = "cuda"
+    print("Observation space:", observation_space)
+    print("Action space:", env.action_space)
 
-        # model
-        net = DQN(
-            observation_space.shape[2],
-            observation_space.shape[1],
-            observation_space.shape[0],
-            device=device
-        ).to(device)
+    if agents is None:
+        agents = []
+        optims = []
+        for _ in range(n_agents):
+            # model
+            net = DQN(
+                observation_space.shape[2],
+                observation_space.shape[1],
+                observation_space.shape[0],
+                device=device
+            ).to(device)
 
-        actor = ActorProb(
-            net, action_shape, max_action=max_action, device=device
-        ).to(device)
-        net2 = DQN(
-            observation_space.shape[2],
-            observation_space.shape[1],
-            observation_space.shape[0],
-            device=device
-        ).to(device)
-        critic = Critic(net2, device=device).to(device)
-        for m in set(actor.modules()).union(critic.modules()):
-            if isinstance(m, torch.nn.Linear):
-                torch.nn.init.orthogonal_(m.weight)
-                torch.nn.init.zeros_(m.bias)
-        optim = torch.optim.Adam(
-            set(actor.parameters()).union(critic.parameters()), lr=lr
-        )
+            actor = ActorProb(
+                net, action_shape, max_action=max_action, device=device
+            ).to(device)
+            net2 = DQN(
+                observation_space.shape[2],
+                observation_space.shape[1],
+                observation_space.shape[0],
+                device=device
+            ).to(device)
+            critic = Critic(net2, device=device).to(device)
+            for m in set(actor.modules()).union(critic.modules()):
+                if isinstance(m, torch.nn.Linear):
+                    torch.nn.init.orthogonal_(m.weight)
+                    torch.nn.init.zeros_(m.bias)
+            optim = torch.optim.Adam(
+                set(actor.parameters()).union(critic.parameters()), lr=lr
+            )
+
+            def dist(*logits):
+                return Independent(Normal(*logits), 1)
         
-        # decay learning rate to 0 linearly
-        max_update_num = np.ceil(step_per_epoch / step_per_collect) * max_epoch
+            # decay learning rate to 0 linearly
+            max_update_num = np.ceil(step_per_epoch / step_per_collect) * max_epoch
 
-        lr_scheduler = None #LambdaLR(optim, lr_lambda=lambda epoch: 1 - epoch / max_update_num)
+            lr_scheduler = None #LambdaLR(optim, lr_lambda=lambda epoch: 1 - epoch / max_update_num)
 
-        agent = PPOPolicy(
-                    actor,
-                    critic,
-                    optim,
-                    dist,
-                    discount_factor=0.99,
-                    value_clip=True,
-                    reward_normalization=True,
-                    max_grad_norm=max_grad_norm,
-                    action_space=env.action_space,
-                    action_scaling=True,
-                    lr_scheduler=lr_scheduler,
-                    )
-        
-        agents.append(agent)
-        optims.append(optim)
+            agent = PPOPolicy(
+                actor,
+                critic,
+                optim,
+                dist,
+                discount_factor=gamma,
+                max_grad_norm=max_grad_norm,
+                eps_clip=eps_clip,
+                vf_coef=vf_coef,
+                ent_coef=ent_coef,
+                reward_normalization=rew_norm,
+                advantage_normalization=norm_adv,
+                recompute_advantage=recompute_adv,
+                # dual_clip=args.dual_clip,
+                # dual clip cause monotonically increasing log_std :)
+                value_clip=value_clip,
+                gae_lambda=gae_lambda,
+                action_space=env.action_space,
+                lr_scheduler=lr_scheduler,
+                action_bound_method='clip'
+            )
+            agents.append(agent)
+            optims.append(optim)
 
     policy = MultiAgentPolicyManager(
-        agents, env, action_scaling=False, action_bound_method='clip'
+        agents, env, action_scaling=True, action_bound_method='clip'
     )
     return policy, optims, env.agents
 
@@ -148,18 +178,18 @@ def _get_agents(
 if __name__ == "__main__":
     print("STARTING TRAINING")
 
-    env = _get_env()
+    # env = _get_env()
 
     # ======== Step 1: Environment setup =========
-    train_envs = DummyVectorEnv([_get_env for _ in range(1)])   # DummyVectorEnv
-    test_envs = DummyVectorEnv([_get_env for _ in range(1)])
+    train_envs = DummyVectorEnv([_get_train_env for _ in range(train_num)])   # DummyVectorEnv
+    test_envs = DummyVectorEnv([_get_test_env for _ in range(test_num)])
 
     # seed
-    seed = 42
-    np.random.seed(seed)
-    #torch.manual_seed(seed)
-    train_envs.seed(seed)
-    test_envs.seed(seed)
+    # seed = 1626
+    # np.random.seed(seed)
+    # torch.manual_seed(seed)
+    # train_envs.seed(seed)
+    # test_envs.seed(seed)
 
     # ======== Step 2: Agent setup =========
     policy, optims, agents = _get_agents()
@@ -167,10 +197,11 @@ if __name__ == "__main__":
     # Load saved policy
     if policy_name_load is not None:
         for i, _ in enumerate(agents):
-            policy.policies[f'car_{i}'].load_state_dict(torch.load(os.path.join("log", "ppo", f"{policy_name_load}.pth")))
-        
+            policy.policies[f'car_{i}'].load_state_dict(torch.load(os.path.join("log", "ppo", f"{policy_name_load}.pth"))['model'])
+            optims[i].load_state_dict(torch.load(os.path.join("log", "ppo", f"{policy_name_load}.pth"))['optim'])
+
     # ======== Step 3: Collector setup =========
-    buffer = VectorReplayBuffer(10_000, buffer_num=len(train_envs), ignore_obs_next=True)
+    buffer = VectorReplayBuffer(10_000, buffer_num=len(train_envs))
 
     train_collector = Collector(
         policy,
@@ -178,7 +209,7 @@ if __name__ == "__main__":
         buffer,
         exploration_noise=True,
     )
-    test_collector = Collector(policy, test_envs, exploration_noise=True)
+    test_collector = Collector(policy, test_envs, exploration_noise=False)
     #train_collector.collect(n_step=64*10)  # batch size * training_num
     # ======== Step 4: Callback functions setup =========
 
@@ -224,11 +255,12 @@ if __name__ == "__main__":
         step_per_epoch=step_per_epoch,
         step_per_collect=step_per_collect,
         repeat_per_collect=2,
-        episode_per_test=6, ###############################################
-        batch_size=64,
+        episode_per_test=5,
+        batch_size=32,
         stop_fn=stop_fn,
         save_best_fn=save_best_fn,
         save_checkpoint_fn=save_checkpoint_fn,
+        resume_from_log=False,
         test_in_train=False,
         reward_metric=reward_metric,
         logger=logger,
