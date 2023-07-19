@@ -42,8 +42,6 @@ class DQN(nn.Module):
         info: Dict[str, Any] = {},
     ) -> Tuple[torch.Tensor, Any]:
         r"""Mapping: x -> Q(x, \*)."""
-        # x_obs = x.observation
-        # x_speed = x.speed
-        x_obs = x
-        x = torch.as_tensor(x_obs, device=self.device, dtype=torch.float32)
+        # np.save("x.npy", x)
+        x = torch.as_tensor(x, device=self.device, dtype=torch.float32)
         return self.net(x.reshape(-1, self.c, self.w, self.h)), state
