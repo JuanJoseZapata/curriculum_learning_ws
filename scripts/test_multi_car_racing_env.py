@@ -2,27 +2,50 @@ from gym_multi_car_racing import multi_car_racing
 
 from tianshou.env.pettingzoo_env import PettingZooEnv
 from tianshou.env import DummyVectorEnv
-from tianshou.policy import MultiAgentPolicyManager, RandomPolicy
-from tianshou.data import Collector
+from tianshou.policy import MultiAgentPolicyManager, PPOPolicy
+from tianshou.data import Collector, VectorReplayBuffer
+from tianshou.utils.net.common import ActorCritic, Net
+from tianshou.utils.net.continuous import Actor, Critic, ActorProb
+from torch.distributions import Independent, Normal
 
+import torch
+import os
+import numpy as np
+import supersuit as ss
 
-n_agents = 2
-# Step 1: Load the PettingZoo environment
-env = multi_car_racing.env(n_agents=n_agents, direction="CCW", render_mode="human")
+from training import _get_env, _get_agents, _get_env_render
+from network import DQN
 
-# Step 2: Wrap the environment for Tianshou interfacing
-env = PettingZooEnv(env)
+# ======== Step 1: Environment setup =========
+train_envs = DummyVectorEnv([_get_env_render for _ in range(1)])   # DummyVectorEnv
+test_envs = DummyVectorEnv([_get_env_render for _ in range(1)])
 
-# Step 3: Define policies for each agent
-policies = MultiAgentPolicyManager([RandomPolicy() for _ in range(n_agents)], env)
+# seed
+# seed = 1626
+# np.random.seed(seed)
+# torch.manual_seed(seed)
+# train_envs.seed(seed)
+# test_envs.seed(seed)
 
-# Step 4: Convert the env to vector format
-env = DummyVectorEnv([lambda: env])
+# ======== Step 2: Agent setup =========
+policy, optim, agents = _get_agents()
 
-# Step 5: Construct the Collector, which interfaces the policies with the vectorised environment
-collector = Collector(policies, env)
+load_policy = False
+# Load saved policy
+if load_policy:
+    for i, _ in enumerate(agents):
+        policy.policies[f'car_{i}'].load_state_dict(torch.load(os.path.join("log", "ppo", "ppo_one-car_rgb_1-frame_ss_lr2e-4.pth")))#['model'])
+        print("Loaded policy")
+        
+# ======== Step 3: Collector setup =========
+buffer = VectorReplayBuffer(10_000, buffer_num=len(train_envs))
 
-# Step 6: Execute the environment with the agents playing for 1 episode, and render a frame every 0.1 seconds
-result = collector.collect(n_episode=1)
+train_collector = Collector(
+    policy,
+    train_envs,
+    buffer,
+    exploration_noise=True,
+)
+test_collector = Collector(policy, test_envs, exploration_noise=False)
 
-env.close()
+result = train_collector.collect(n_step=2500, random=False)  # batch size * training_num
