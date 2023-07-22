@@ -42,6 +42,7 @@ class DQN(nn.Module):
         info: Dict[str, Any] = {},
     ) -> Tuple[torch.Tensor, Any]:
         r"""Mapping: x -> Q(x, \*)."""
-        # np.save("x.npy", x)
+        #np.save("x.npy", x)
         x = torch.as_tensor(x, device=self.device, dtype=torch.float32)
+        x = x/255.0  # normalize
         return self.net(x.reshape(-1, self.c, self.w, self.h)), state

@@ -13,7 +13,7 @@ import os
 import numpy as np
 import supersuit as ss
 
-from training import _get_env, _get_agents, _get_env_render
+from training import _get_agents, _get_env_render
 from network import DQN
 
 # ======== Step 1: Environment setup =========
@@ -30,11 +30,11 @@ test_envs = DummyVectorEnv([_get_env_render for _ in range(1)])
 # ======== Step 2: Agent setup =========
 policy, optim, agents = _get_agents()
 
-load_policy = False
+load_policy = True
 # Load saved policy
 if load_policy:
     for i, _ in enumerate(agents):
-        policy.policies[f'car_{i}'].load_state_dict(torch.load(os.path.join("log", "ppo", "ppo_one-car_rgb_1-frame_ss_lr2e-4.pth")))#['model'])
+        policy.policies[f'car_{i}'].load_state_dict(torch.load(os.path.join("log", "ppo", "checkpoint_69.pth"))['model'])
         print("Loaded policy")
         
 # ======== Step 3: Collector setup =========

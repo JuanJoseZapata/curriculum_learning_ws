@@ -58,16 +58,14 @@ train_num = 4
 # Test num
 test_num = 4
 # Frame stack
-frame_stack = 1
-# Grayscale
-grayscale = False
+frame_stack = 4
 
 # Resume training
 run_id = None
 
 # Policy name
-policy_name_load = None
-policy_name_save = "ppo_1-car_rgb_1-frame_lr2e-4_slow-penalty_4-envs"
+policy_name_load = "checkpoint_85"
+policy_name_save = "ppo_1-car_remove-grass_speed-40_grass-penalty_4-frames_lr2e-4"
 
 def _get_train_env():
     """This function is needed to provide callables for DummyVectorEnv."""
@@ -80,7 +78,7 @@ def _get_train_env():
 def _get_test_env():
     """This function is needed to provide callables for DummyVectorEnv."""
     env = multi_car_racing.env(n_agents=n_agents, use_random_direction=True,
-                               render_mode="human", discrete_action_space=False)
+                               render_mode="state_pixels", discrete_action_space=False)
     if frame_stack > 1:
         env = ss.frame_stack_v1(env, frame_stack)
     return PettingZooEnv(env)
@@ -198,7 +196,7 @@ if __name__ == "__main__":
     if policy_name_load is not None:
         for i, _ in enumerate(agents):
             policy.policies[f'car_{i}'].load_state_dict(torch.load(os.path.join("log", "ppo", f"{policy_name_load}.pth"))['model'])
-            optims[i].load_state_dict(torch.load(os.path.join("log", "ppo", f"{policy_name_load}.pth"))['optim'])
+            #optims[i].load_state_dict(torch.load(os.path.join("log", "ppo", f"{policy_name_load}.pth"))['optim'])
 
     # ======== Step 3: Collector setup =========
     buffer = VectorReplayBuffer(10_000, buffer_num=len(train_envs))
@@ -234,7 +232,7 @@ if __name__ == "__main__":
         return ckpt_path
 
     def stop_fn(mean_rewards):
-        return mean_rewards >= 800
+        return mean_rewards >= 900
 
     def reward_metric(rews):
         return rews[:, agent]
