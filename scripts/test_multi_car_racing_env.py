@@ -34,7 +34,7 @@ load_policy = True
 # Load saved policy
 if load_policy:
     for i, _ in enumerate(agents):
-        policy.policies[f'car_{i}'].load_state_dict(torch.load(os.path.join("log", "ppo", "checkpoint_69.pth"))['model'])
+        policy.policies[f'car_{i}'].load_state_dict(torch.load(os.path.join("log", "ppo", "checkpoint_36.pth"))['model'])
         print("Loaded policy")
         
 # ======== Step 3: Collector setup =========
