@@ -195,7 +195,10 @@ if __name__ == "__main__":
     # Load saved policy
     if policy_name_load is not None:
         for i, _ in enumerate(agents):
-            policy.policies[f'car_{i}'].load_state_dict(torch.load(os.path.join("log", "ppo", f"{policy_name_load}.pth"))['model'])
+            try:
+                policy.policies[f'car_{i}'].load_state_dict(torch.load(os.path.join("log", "ppo", f"{policy_name_load}.pth"))['model'])
+            except KeyError:
+                policy.policies[f'car_{i}'].load_state_dict(torch.load(os.path.join("log", "ppo", f"{policy_name_load}.pth")))
             #optims[i].load_state_dict(torch.load(os.path.join("log", "ppo", f"{policy_name_load}.pth"))['optim'])
 
     # ======== Step 3: Collector setup =========

@@ -30,11 +30,14 @@ test_envs = DummyVectorEnv([_get_env_render for _ in range(1)])
 # ======== Step 2: Agent setup =========
 policy, optim, agents = _get_agents()
 
-load_policy = True
+policy_name = "checkpoint_196" #"ppo_1-car_remove-grass_speed-40_grass-penalty_4-frames_lr2e-4"
 # Load saved policy
-if load_policy:
+if policy_name is not None:
     for i, _ in enumerate(agents):
-        policy.policies[f'car_{i}'].load_state_dict(torch.load(os.path.join("log", "ppo", "checkpoint_36.pth"))['model'])
+        try:
+            policy.policies[f'car_{i}'].load_state_dict(torch.load(os.path.join("log", "ppo", f"{policy_name}.pth"))['model'])
+        except KeyError:
+            policy.policies[f'car_{i}'].load_state_dict(torch.load(os.path.join("log", "ppo", f"{policy_name}.pth")))
         print("Loaded policy")
         
 # ======== Step 3: Collector setup =========
