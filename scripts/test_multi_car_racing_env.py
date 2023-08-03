@@ -18,7 +18,6 @@ from network import DQN
 
 # ======== Step 1: Environment setup =========
 train_envs = DummyVectorEnv([_get_env_render for _ in range(1)])   # DummyVectorEnv
-test_envs = DummyVectorEnv([_get_env_render for _ in range(1)])
 
 # seed
 # seed = 1626
@@ -30,7 +29,7 @@ test_envs = DummyVectorEnv([_get_env_render for _ in range(1)])
 # ======== Step 2: Agent setup =========
 policy, optim, agents = _get_agents()
 
-policy_name = "checkpoint_196" #"ppo_1-car_remove-grass_speed-40_grass-penalty_4-frames_lr2e-4"
+policy_name = "checkpoint_153"
 # Load saved policy
 if policy_name is not None:
     for i, _ in enumerate(agents):
@@ -49,6 +48,5 @@ train_collector = Collector(
     buffer,
     exploration_noise=True,
 )
-test_collector = Collector(policy, test_envs, exploration_noise=False)
 
 result = train_collector.collect(n_step=2500, random=False)  # batch size * training_num
