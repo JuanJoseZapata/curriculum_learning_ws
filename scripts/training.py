@@ -52,25 +52,30 @@ recompute_adv = 0
 value_clip = True
 gae_lambda = 0.95
 # Initial learning rate
-lr = 2e-4
+lr = 3e-4
 # Train num
 train_num = 4
 # Test num
 test_num = 4
 # Frame stack
 frame_stack = 4
+# Frame skip
+frame_skip = 0
 
 # Resume training
 run_id = None
+resume_from_log = False if run_id is None else True
 
 # Policy name
-policy_name_load = "checkpoint_85"
-policy_name_save = "ppo_1-car_remove-grass_speed-40_grass-penalty_4-frames_lr2e-4"
+policy_name_load = None
+policy_name_save = "ppo_1-car_4-frames_frame-skip-4_lr2e-4"
 
 def _get_train_env():
     """This function is needed to provide callables for DummyVectorEnv."""
     env = multi_car_racing.env(n_agents=n_agents, use_random_direction=True,
                                render_mode="state_pixels", discrete_action_space=False)
+    if frame_skip > 1:
+        env = ss.frame_skip_v0(env, frame_skip)
     if frame_stack > 1:
         env = ss.frame_stack_v1(env, frame_stack)
     return PettingZooEnv(env)
@@ -79,6 +84,8 @@ def _get_test_env():
     """This function is needed to provide callables for DummyVectorEnv."""
     env = multi_car_racing.env(n_agents=n_agents, use_random_direction=True,
                                render_mode="state_pixels", discrete_action_space=False)
+    if frame_skip > 1:
+        env = ss.frame_skip_v0(env, frame_skip)
     if frame_stack > 1:
         env = ss.frame_stack_v1(env, frame_stack)
     return PettingZooEnv(env)
@@ -86,7 +93,10 @@ def _get_test_env():
 def _get_env_render():
     """This function is needed to provide callables for DummyVectorEnv."""
     env = multi_car_racing.env(n_agents=n_agents, use_random_direction=True,
-                               render_mode="human", discrete_action_space=False)
+                               render_mode="human", discrete_action_space=False,
+                               domain_randomize=False, verbose=True, percent_complete=0.98)
+    if frame_skip > 1:
+        env = ss.frame_skip_v0(env, frame_skip)
     if frame_stack > 1:
         env = ss.frame_stack_v1(env, frame_stack)
     return PettingZooEnv(env)
@@ -104,6 +114,7 @@ def _get_agents(
     device = "cuda"
     print("Observation space:", observation_space)
     print("Action space:", env.action_space)
+    env.close()
 
     if agents is None:
         agents = []
@@ -142,6 +153,7 @@ def _get_agents(
             max_update_num = np.ceil(step_per_epoch / step_per_collect) * max_epoch
 
             lr_scheduler = None #LambdaLR(optim, lr_lambda=lambda epoch: 1 - epoch / max_update_num)
+            lr_scheduler = LambdaLR(optim, lr_lambda=lambda epoch: 0.99**epoch)
 
             agent = PPOPolicy(
                 actor,
@@ -261,7 +273,7 @@ if __name__ == "__main__":
         stop_fn=stop_fn,
         save_best_fn=save_best_fn,
         save_checkpoint_fn=save_checkpoint_fn,
-        resume_from_log=False,
+        resume_from_log=resume_from_log,
         test_in_train=False,
         reward_metric=reward_metric,
         logger=logger,
