@@ -47,11 +47,11 @@ xformers
 l5kit
 
 # rl-tools
+gym==0.17.2
 autorom
 ale-py
 dm-acme
 dm-control
-gym==0.17.2
 gymnasium
 pettingzoo
 tianshou
