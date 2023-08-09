@@ -37,9 +37,9 @@ n_agents = 1
 # Number of steps per epoch
 step_per_epoch = 10000
 # Number of steps per collect
-step_per_collect = 800
+step_per_collect = 700
 # Number of epochs
-max_epoch = 100
+max_epoch = 500
 # PPO parameters
 max_grad_norm = 0.5
 gamma = 0.99
@@ -52,15 +52,19 @@ recompute_adv = 0
 value_clip = True
 gae_lambda = 0.95
 # Initial learning rate
-lr = 3e-4
+lr = 1e-4
 # Train num
-train_num = 4
+train_num = 10
 # Test num
-test_num = 4
+test_num = 10
 # Frame stack
 frame_stack = 4
 # Frame skip
 frame_skip = 0
+# Penalties
+penalties = False
+# Domain randomization
+domain_randomize = False
 
 # Resume training
 run_id = None
@@ -68,12 +72,13 @@ resume_from_log = False if run_id is None else True
 
 # Policy name
 policy_name_load = None
-policy_name_save = "ppo_1-car_4-frames_frame-skip-4_lr2e-4"
+policy_name_save = "ppo_1-car_4-frames_lr1e-4_700-steps-per-collect"
 
 def _get_train_env():
     """This function is needed to provide callables for DummyVectorEnv."""
     env = multi_car_racing.env(n_agents=n_agents, use_random_direction=True,
-                               render_mode="state_pixels", discrete_action_space=False)
+                               render_mode="state_pixels", penalties=penalties,
+                               domain_randomize=domain_randomize)
     if frame_skip > 1:
         env = ss.frame_skip_v0(env, frame_skip)
     if frame_stack > 1:
@@ -83,7 +88,7 @@ def _get_train_env():
 def _get_test_env():
     """This function is needed to provide callables for DummyVectorEnv."""
     env = multi_car_racing.env(n_agents=n_agents, use_random_direction=True,
-                               render_mode="state_pixels", discrete_action_space=False)
+                               render_mode="state_pixels", domain_randomize=domain_randomize)
     if frame_skip > 1:
         env = ss.frame_skip_v0(env, frame_skip)
     if frame_stack > 1:
@@ -93,10 +98,7 @@ def _get_test_env():
 def _get_env_render():
     """This function is needed to provide callables for DummyVectorEnv."""
     env = multi_car_racing.env(n_agents=n_agents, use_random_direction=True,
-                               render_mode="human", discrete_action_space=False,
-                               domain_randomize=False, verbose=True, percent_complete=0.98)
-    if frame_skip > 1:
-        env = ss.frame_skip_v0(env, frame_skip)
+                               render_mode="human", verbose=True)
     if frame_stack > 1:
         env = ss.frame_stack_v1(env, frame_stack)
     return PettingZooEnv(env)
@@ -153,7 +155,7 @@ def _get_agents(
             max_update_num = np.ceil(step_per_epoch / step_per_collect) * max_epoch
 
             lr_scheduler = None #LambdaLR(optim, lr_lambda=lambda epoch: 1 - epoch / max_update_num)
-            lr_scheduler = LambdaLR(optim, lr_lambda=lambda epoch: 0.99**epoch)
+            #lr_scheduler = LambdaLR(optim, lr_lambda=lambda epoch: 0.99**epoch)
 
             agent = PPOPolicy(
                 actor,
@@ -191,8 +193,8 @@ if __name__ == "__main__":
     # env = _get_env()
 
     # ======== Step 1: Environment setup =========
-    train_envs = DummyVectorEnv([_get_train_env for _ in range(train_num)])   # DummyVectorEnv
-    test_envs = DummyVectorEnv([_get_test_env for _ in range(test_num)])
+    train_envs = SubprocVectorEnv([_get_train_env for _ in range(train_num)])   # DummyVectorEnv, SubprocVectorEnv
+    test_envs = SubprocVectorEnv([_get_test_env for _ in range(test_num)])
 
     # seed
     # seed = 1626
@@ -259,6 +261,8 @@ if __name__ == "__main__":
     writer = SummaryWriter()
     logger.load(writer)
 
+    print("CUDA available:", torch.cuda.is_available())
+
     # ======== Step 5: Run the trainer =========
     result = onpolicy_trainer(
         policy=policy,
@@ -267,7 +271,7 @@ if __name__ == "__main__":
         max_epoch=max_epoch,
         step_per_epoch=step_per_epoch,
         step_per_collect=step_per_collect,
-        repeat_per_collect=2,
+        repeat_per_collect=1,
         episode_per_test=5,
         batch_size=32,
         stop_fn=stop_fn,
