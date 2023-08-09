@@ -44,7 +44,6 @@ spacy
 jupyterlab
 huggingface-hub
 xformers
-l5kit
 
 # rl-tools
 gym==0.17.2
@@ -55,4 +54,4 @@ dm-control
 gymnasium
 pettingzoo
 tianshou
-stable_baselines 
+stable_baselines3 
