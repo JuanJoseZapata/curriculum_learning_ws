@@ -216,7 +216,7 @@ if __name__ == "__main__":
             #optims[i].load_state_dict(torch.load(os.path.join("log", "ppo", f"{policy_name_load}.pth"))['optim'])
 
     # ======== Step 3: Collector setup =========
-    buffer = VectorReplayBuffer(10_000, buffer_num=len(train_envs))
+    buffer = VectorReplayBuffer(100_000, buffer_num=len(train_envs), stack_num=frame_stack)
 
     train_collector = Collector(
         policy,
