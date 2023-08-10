@@ -21,6 +21,7 @@ cffi
 shapely
 plotly
 celery
+pyvirtualdisplay
 
 # ml-tools
 protobuf
