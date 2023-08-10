@@ -55,6 +55,7 @@ pettingzoo = "*"
 tianshou = "*"
 stable-baselines3 = "*"
 supersuit = "*"
+box2d = "*"
 
 [dev-packages]
 

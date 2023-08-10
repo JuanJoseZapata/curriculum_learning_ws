@@ -56,3 +56,4 @@ pettingzoo
 tianshou
 stable_baselines3 
 supersuit
+Box2D
