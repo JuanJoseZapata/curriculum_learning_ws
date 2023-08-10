@@ -95,14 +95,6 @@ def _get_test_env():
         env = ss.frame_stack_v1(env, frame_stack)
     return PettingZooEnv(env)
 
-def _get_env_render():
-    """This function is needed to provide callables for DummyVectorEnv."""
-    env = multi_car_racing.env(n_agents=n_agents, use_random_direction=True,
-                               render_mode="human", verbose=True)
-    if frame_stack > 1:
-        env = ss.frame_stack_v1(env, frame_stack)
-    return PettingZooEnv(env)
-
 def _get_agents(
     agents: Optional[List[BasePolicy]] = None,
     optim: Optional[torch.optim.Optimizer] = None,
