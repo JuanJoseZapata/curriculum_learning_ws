@@ -177,4 +177,5 @@ pyrightconfig.json
 
 scripts/runs/
 scripts/wandb
+checkpoint_*.pth
 checkpoint_**.pth
