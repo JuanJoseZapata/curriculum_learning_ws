@@ -1,6 +1,6 @@
 from gym_multi_car_racing import multi_car_racing, multi_car_racing_f1
 import gymnasium as gym
-from formula1 import *
+from gym_multi_car_racing.formula1 import *
 
 from typing import Optional, Tuple, List
 
@@ -22,9 +22,9 @@ from network import DQN
 # Parameters
 n_agents = 1
 frame_stack = 4
-render_mode = "state_pixels"  # "state_pixels" or "human"
+render_mode = "human"  # "state_pixels" or "human"
 f1_track = Belgium  # None or Belgium, Monaco, ... (see formula1.py)
-policy_name = "checkpoint_318"
+policy_name = "checkpoint_500"
 
 
 def _get_test_env():
