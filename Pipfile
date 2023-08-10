@@ -54,6 +54,7 @@ gymnasium = "*"
 pettingzoo = "*"
 tianshou = "*"
 stable-baselines3 = "*"
+supersuit = "*"
 
 [dev-packages]
 
