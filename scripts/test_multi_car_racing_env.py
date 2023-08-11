@@ -22,9 +22,9 @@ from network import DQN
 # Parameters
 n_agents = 1
 frame_stack = 4
-render_mode = "human"  # "state_pixels" or "human"
-f1_track = Belgium  # None or Belgium, Monaco, ... (see formula1.py)
-policy_name = "checkpoint_500"
+render_mode = "state_pixels"  # "state_pixels" or "human"
+f1_track = Australia  # None or Belgium, Monaco, ... (see formula1.py)
+policy_name = "checkpoint_97"
 
 
 def _get_test_env():
@@ -33,13 +33,15 @@ def _get_test_env():
         env = multi_car_racing.env(n_agents=n_agents,
                                    use_random_direction=True,
                                    render_mode=render_mode,
-                                   verbose=True)
+                                   verbose=True,
+                                   percent_complete=0.99)
     else:
         env = multi_car_racing_f1.env(f1_track,
                                       n_agents=n_agents,
                                       use_random_direction=False,
                                       render_mode=render_mode,
-                                      verbose=True)
+                                      verbose=True,
+                                      percent_complete=0.99)
         
     if frame_stack > 1:
         env = ss.frame_stack_v1(env, frame_stack)
