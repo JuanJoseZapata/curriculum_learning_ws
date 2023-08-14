@@ -22,8 +22,8 @@ from network import DQN
 # Parameters
 n_agents = 1
 frame_stack = 4
-render_mode = "state_pixels"  # "state_pixels" or "human"
-f1_track = Brazil  # None or Belgium, Monaco, ... (see formula1.py)
+render_mode = "human"  # "state_pixels" or "human"
+f1_track = None  # None or Belgium, Monaco, ... (see formula1.py)
 policy_name = "ppo_1-car_best-agent_original-env"
 
 
@@ -143,6 +143,7 @@ if __name__ == "__main__":
         exploration_noise=True,
     )
 
-    print(f"Track: {f1_track.name}")
+    if f1_track is not None:
+        print(f"Track: {f1_track.name}")
     result = train_collector.collect(n_episode=10, random=False)
     print(result)
