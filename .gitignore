@@ -175,6 +175,7 @@ pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python
 
+# Wandb logs
 scripts/runs/
 scripts/wandb
 runs/
@@ -182,3 +183,6 @@ wandb/
 checkpoint_*.pth
 checkpoint_**.pth
 checkpoint_***.pth
+
+# Notebooks
+*.ipynb
