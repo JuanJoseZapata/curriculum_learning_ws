@@ -37,7 +37,7 @@ n_agents = 1
 # Number of steps per epoch
 step_per_epoch = 10000
 # Number of steps per collect
-step_per_collect = 700
+step_per_collect = 1000
 # Number of epochs
 max_epoch = 500
 # PPO parameters
@@ -51,6 +51,8 @@ norm_adv = True
 recompute_adv = 0
 value_clip = True
 gae_lambda = 0.95
+# Batch size
+batch_size = 128
 # Initial learning rate
 lr = 1e-4
 # Train num
@@ -62,7 +64,7 @@ frame_stack = 4
 # Frame skip
 frame_skip = 0
 # Penalties
-penalties = False
+penalties = True
 # Domain randomization
 domain_randomize = False
 
@@ -71,8 +73,8 @@ run_id = None
 resume_from_log = False if run_id is None else True
 
 # Policy name
-policy_name_load = None
-policy_name_save = "ppo_1-car_4-frames_lr1e-4_700-steps-per-collect"
+policy_name_load = "checkpoint_78"
+policy_name_save = "c_ppo_1-car_4-frames_lr1e-4_1000-steps-per-collect_batch-size-128_track-width-23_penalties"
 
 def _get_train_env():
     """This function is needed to provide callables for DummyVectorEnv."""
@@ -265,7 +267,7 @@ if __name__ == "__main__":
         step_per_collect=step_per_collect,
         repeat_per_collect=1,
         episode_per_test=5,
-        batch_size=32,
+        batch_size=batch_size,
         stop_fn=stop_fn,
         save_best_fn=save_best_fn,
         save_checkpoint_fn=save_checkpoint_fn,
