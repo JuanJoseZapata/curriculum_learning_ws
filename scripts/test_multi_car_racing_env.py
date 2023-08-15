@@ -22,9 +22,9 @@ from network import DQN
 # Parameters
 n_agents = 1
 frame_stack = 4
-render_mode = "human"  # "state_pixels" or "human"
-f1_track = None  # None or Belgium, Monaco, ... (see formula1.py)
-policy_name = "ppo_1-car_best-agent_original-env"
+render_mode = "state_pixels"  # "state_pixels" or "human"
+f1_track = Mexico  # None or Belgium, Monaco, ... (see formula1.py)
+policy_name = "checkpoint_78"
 
 
 def _get_test_env():
@@ -40,8 +40,7 @@ def _get_test_env():
                                       n_agents=n_agents,
                                       use_random_direction=False,
                                       render_mode=render_mode,
-                                      verbose=True,
-                                      percent_complete=0.99)
+                                      verbose=True)
         
     if frame_stack > 1:
         env = ss.frame_stack_v1(env, frame_stack)
