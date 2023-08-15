@@ -1,15 +1,14 @@
-# Curriculum Learning for Deep RL
+# Curriculum Learning for Deep Reinforcement Learning
 
-Juan José Zapata González
+![image](https://github.com/JuanJoseZapata/curriculum_learning_ws/assets/66514932/e0c20154-774a-474f-b2a3-4a60ce32c4f6)
 
-Karlsruhe Institute of Technology
-
-Institute of Measurement and Control Systems (MRT)
-
-Summer Semester 2023
+Juan José Zapata González\
+Karlsruhe Institute of Technology (KIT)\
+Institute of Measurement and Control Systems (MRT)\
+2023
 ___
 
-This repository contains the implementation of my master's thesis on curriculum learning for multi-agent deep reinforcement learning.
+This repository contains the implementation of my master's thesis on curriculum learning for deep multi-agent reinforcement learning.
 
 ## Getting Started
 
