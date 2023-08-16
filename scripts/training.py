@@ -54,7 +54,7 @@ gae_lambda = 0.95
 # Batch size
 batch_size = 128
 # Initial learning rate
-lr = 1e-4
+lr = 2e-4
 # Train num
 train_num = 10
 # Test num
@@ -62,9 +62,9 @@ test_num = 10
 # Frame stack
 frame_stack = 4
 # Frame skip
-frame_skip = 0
+frame_skip = 4
 # Penalties
-penalties = True
+penalties = False
 # Domain randomization
 domain_randomize = False
 
@@ -73,8 +73,8 @@ run_id = None
 resume_from_log = False if run_id is None else True
 
 # Policy name
-policy_name_load = "checkpoint_78"
-policy_name_save = "c_ppo_1-car_4-frames_lr1e-4_1000-steps-per-collect_batch-size-128_track-width-23_penalties"
+policy_name_load = None
+policy_name_save = "ppo_1-car_4-frames_lr2e-4_batch-size-128_frame-skip-4"
 
 def _get_train_env():
     """This function is needed to provide callables for DummyVectorEnv."""
@@ -187,7 +187,7 @@ if __name__ == "__main__":
     # env = _get_env()
 
     # ======== Step 1: Environment setup =========
-    train_envs = SubprocVectorEnv([_get_train_env for _ in range(train_num)])   # DummyVectorEnv, SubprocVectorEnv
+    train_envs = SubprocVectorEnv([_get_train_env for _ in range(train_num)])   # DummyVectorEnv, SubprocVectorEnv, ShmemVectorEnv
     test_envs = SubprocVectorEnv([_get_test_env for _ in range(test_num)])
 
     # seed
@@ -251,7 +251,11 @@ if __name__ == "__main__":
 
     log_path = os.path.join("log", "ppo")
 
-    logger = WandbLogger(save_interval=1, project='multi_car_racing', name=f'{policy_name_save}', run_id=run_id)
+    logger = WandbLogger(save_interval=1,
+                         project='multi_car_racing',
+                         name=f'{policy_name_save}',
+                         run_id=run_id,
+                         config={'mode': 'offline'})
     writer = SummaryWriter()
     logger.load(writer)
 
