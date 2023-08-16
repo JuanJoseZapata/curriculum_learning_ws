@@ -1,29 +1,28 @@
-# Curriculum Learning for Deep RL
+# Curriculum Learning for Deep Reinforcement Learning
 
-Juan José Zapata González
+![image](https://github.com/JuanJoseZapata/curriculum_learning_ws/assets/66514932/e0c20154-774a-474f-b2a3-4a60ce32c4f6)
 
-Karlsruhe Institute of Technology
-
-Institute of Measurement and Control Systems (MRT)
-
-Summer Semester 2023
+Juan José Zapata González\
+Karlsruhe Institute of Technology (KIT)\
+Institute of Measurement and Control Systems (MRT)\
+2023
 ___
 
-This repository contains the implementation of my master's thesis on curriculum learning for multi-agent deep reinforcement learning.
+This repository contains the implementation of my master's thesis on curriculum learning for deep multi-agent reinforcement learning.
 
 ## Getting Started
 
 1. Install required packages from `Pipfile` using `Pipenv`:
-```shell
+```bash
 pipenv install
 ```
 2. Initiate `multi_car_racing` submodule:
-```shell
+```bash
 git submodule init
 git submodule update
 ```
 3. Install `multi_car_racing` environment:
-```shell
+```bash
 cd multi_car_racing
 pip install -e .
 ```
@@ -37,12 +36,19 @@ The environment has the following parameters:
 
 | Parameter              | Type  | Description |
 |------------------------| :---: |-------------|
-| `num_agents`           |`int`  | Number of agents in environment (Default: `2`) |
-| `direction`            |`str`  | Winding direction of the track. Can be `'CW'` or `'CCW'` (Default: `'CCW'`)|
+| `n_agents`             |`int`  | Number of agents in environment (Default: `2`). |
+| `direction`            |`str`  | Winding direction of the track. Can be `'CW'` or `'CCW'` (Default: `'CCW'`). |
 | `use_random_direction` |`bool` | Randomize winding direction of the track. Disregards `direction` if enabled (Default: `True`). |
 | `backwards_flag`       |`bool` | Shows a small flag if agent driving backwards (Default: `True`). |
 | `h_ratio`              |`float`| Controls horizontal agent location in the state (Default: `0.25`) |
 | `use_ego_color`        |`bool` | In each view the ego vehicle has the same color if  activated (Default: `False`). |
+|`discrete_action_space` |`bool` | Whether to use a discrete action space (Default: `False`). |
+|`grayscale`             |`bool` | Grayscale observations (84x84) (Default: `False`). |
+|`percent_complete`      |`float`| Percentage of visited tiles necessary to terminate the episode (Default: `0.95`). |
+|`domain_randomize`      |`bool` | Use random colors each time the environment is reset (Default: `False`). |
+|`penalties`             |`bool` | Add additional penalties for driving on grass (Default: `False`). |
+
+The observations in the original `CarRacing-v0` environment are RGB images of shape `(96x96x3)`. The images contain some indicators at the bottom (speed, sterring wheel position, etc.). In this implementation, the bottom indicators are removed and the observations have the shape `(84x84x3)` (or `(84x84)` if `grayscale` is `True`).
 
 The _scripts_ folder contains the following scripts:
 - `network.py`: This is where the neural network used in training is defined.
