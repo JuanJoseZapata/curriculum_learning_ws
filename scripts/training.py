@@ -254,8 +254,7 @@ if __name__ == "__main__":
     logger = WandbLogger(save_interval=1,
                          project='multi_car_racing',
                          name=f'{policy_name_save}',
-                         run_id=run_id,
-                         config={'mode': 'offline'})
+                         run_id=run_id)
     writer = SummaryWriter()
     logger.load(writer)
 
