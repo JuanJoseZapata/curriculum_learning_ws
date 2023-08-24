@@ -26,7 +26,7 @@ import supersuit as ss
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.distributions.categorical import Categorical
+from torch.distributions.normal import Normal
 from torch.utils.tensorboard import SummaryWriter
 
 from gym_multi_car_racing import multi_car_racing
@@ -105,13 +105,11 @@ def make_env():
 
     # env setup
     env = multi_car_racing.parallel_env(n_agents=num_agents, use_random_direction=True,
-                               render_mode="human", penalties=penalties,
-                               discrete_action_space=True)
+                               render_mode="human", penalties=penalties)
     if frame_skip > 1:
         env = ss.frame_skip_v0(env, frame_skip)
     if frame_stack > 1:
         env = ss.frame_stack_v1(env, frame_stack)
-    #env = ss.agent_indicator_v0(env, type_only=False)
     env = ss.pettingzoo_env_to_vec_env_v1(env)
 
     return env
@@ -137,19 +135,22 @@ class Agent(nn.Module):
             layer_init(nn.Linear(64 * 7 * 7, 512)),
             nn.ReLU(),
         )
-        self.actor = layer_init(nn.Linear(512, envs.single_action_space.n), std=0.01)
+        self.actor_mean = layer_init(nn.Linear(512, np.prod(envs.single_action_space.shape)), std=0.01)
+        self.actor_logstd = nn.Parameter(torch.zeros(1, np.prod(envs.single_action_space.shape)))
         self.critic = layer_init(nn.Linear(512, 1), std=1)
+
+    def get_action_and_value(self, x, action=None):
+        hidden = self.network(x.permute((0, 3, 1, 2)) / 255.0)
+        action_mean = self.actor_mean(hidden)
+        action_logstd = self.actor_logstd.expand_as(action_mean)
+        action_std = torch.exp(action_logstd)
+        probs = Normal(action_mean, action_std)
+        if action is None:
+            action = probs.sample()
+        return action, probs.log_prob(action).sum(1), probs.entropy().sum(1), self.critic(hidden)
 
     def get_value(self, x):
         return self.critic(self.network(x.permute((0, 3, 1, 2)) / 255.0))
-    
-    def get_action_and_value(self, x, action=None):
-        hidden = self.network(x.permute((0, 3, 1, 2)) / 255.0)
-        logits = self.actor(hidden)
-        probs = Categorical(logits=logits)
-        if action is None:
-            action = probs.sample()
-        return action, probs.log_prob(action), probs.entropy(), self.critic(hidden)
 
 
 if __name__ == "__main__":
@@ -199,8 +200,8 @@ if __name__ == "__main__":
     if args.capture_video:
         envs = gym.wrappers.RecordVideo(envs, f"videos/{run_name}")
     assert isinstance(
-        envs.single_action_space, gym.spaces.Discrete
-    ), "only discrete action space is supported"
+        envs.single_action_space, gym.spaces.Box
+    ), "only continuous action space is supported"
 
     agent = Agent(envs).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
