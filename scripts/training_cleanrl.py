@@ -18,7 +18,9 @@ import importlib
 import os
 import random
 import time
+from datetime import datetime
 from distutils.util import strtobool
+import json
 
 import gymnasium as gym
 import numpy as np
@@ -27,6 +29,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.normal import Normal
+from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 
 from gym_multi_car_racing import multi_car_racing
@@ -56,13 +59,21 @@ def parse_args():
     # Algorithm specific arguments
     parser.add_argument("--env-id", type=str, default="multi_car_racing",
         help="the id of the environment")
-    parser.add_argument("--total-timesteps", type=int, default=5_500_000,  # CleanRL default: 2000000
+    parser.add_argument("--total-timesteps", type=int, default=5_500_000,
         help="total timesteps of the experiments")
     parser.add_argument("--learning-rate", type=float, default=2e-4,
         help="the learning rate of the optimizer")
-    parser.add_argument("--num-envs", type=int, default=2,  # 16
+    parser.add_argument("--num-agents", type=int, default=1,
+        help="number of agents in the environment")
+    parser.add_argument("--penalties", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
+        help="whether to add additional penalties to the environment")
+    parser.add_argument("--frame-stack", type=int, default=4,
+        help="number of stacked frames")
+    parser.add_argument("--frame-skip", type=float, default=4,
+        help="number of frames to skip (repeat action)")
+    parser.add_argument("--num-envs", type=int, default=16,  # 16
         help="the number of parallel game environments")
-    parser.add_argument("--num-steps", type=int, default=256,
+    parser.add_argument("--num-steps", type=int, default=125,
         help="the number of steps to run in each environment per policy rollout")
     parser.add_argument("--anneal-lr", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="Toggle learning rate annealing for policy and value networks")
@@ -76,7 +87,7 @@ def parse_args():
         help="the K epochs to update the policy")
     parser.add_argument("--norm-adv", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="Toggles advantages normalization")
-    parser.add_argument("--clip-coef", type=float, default=0.1,
+    parser.add_argument("--clip-coef", type=float, default=0.2,
         help="the surrogate clipping coefficient")
     parser.add_argument("--clip-vloss", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="Toggles whether or not to use a clipped loss for the value function, as per the paper.")
@@ -88,6 +99,8 @@ def parse_args():
         help="the maximum norm for the gradient clipping")
     parser.add_argument("--target-kl", type=float, default=None,
         help="the target KL divergence threshold")
+    parser.add_argument("--discrete-actions", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
+        help="Whether to use a discrete action space")
     args = parser.parse_args()
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
@@ -95,21 +108,18 @@ def parse_args():
     return args
 
 
-penalties = False
-frame_skip = 4
-frame_stack = 4
-num_agents = 2
-
-
 def make_env():
 
     # env setup
-    env = multi_car_racing.parallel_env(n_agents=num_agents, use_random_direction=True,
-                               render_mode="human", penalties=penalties)
-    if frame_skip > 1:
-        env = ss.frame_skip_v0(env, frame_skip)
-    if frame_stack > 1:
-        env = ss.frame_stack_v1(env, frame_stack)
+    env = multi_car_racing.parallel_env(n_agents=args.num_agents, use_random_direction=True,
+                               render_mode="state_pixels", penalties=args.penalties,
+                               discrete_action_space=args.discrete_actions)
+    if not args.discrete_actions:
+        env = ss.clip_actions_v0(env)
+    if args.frame_skip > 1:
+        env = ss.frame_skip_v0(env, args.frame_skip)
+    if args.frame_stack > 1:
+        env = ss.frame_stack_v1(env, args.frame_stack)
     env = ss.pettingzoo_env_to_vec_env_v1(env)
 
     return env
@@ -135,30 +145,47 @@ class Agent(nn.Module):
             layer_init(nn.Linear(64 * 7 * 7, 512)),
             nn.ReLU(),
         )
-        self.actor_mean = layer_init(nn.Linear(512, np.prod(envs.single_action_space.shape)), std=0.01)
-        self.actor_logstd = nn.Parameter(torch.zeros(1, np.prod(envs.single_action_space.shape)))
-        self.critic = layer_init(nn.Linear(512, 1), std=1)
-
-    def get_action_and_value(self, x, action=None):
-        hidden = self.network(x.permute((0, 3, 1, 2)) / 255.0)
-        action_mean = self.actor_mean(hidden)
-        action_logstd = self.actor_logstd.expand_as(action_mean)
-        action_std = torch.exp(action_logstd)
-        probs = Normal(action_mean, action_std)
-        if action is None:
-            action = probs.sample()
-        return action, probs.log_prob(action).sum(1), probs.entropy().sum(1), self.critic(hidden)
+        if args.discrete_actions:
+            self.actor = layer_init(nn.Linear(512, envs.single_action_space.n), std=0.01)
+            self.critic = layer_init(nn.Linear(512, 1), std=1)
+        else:
+            self.actor_mean = layer_init(nn.Linear(512, np.prod(envs.single_action_space.shape)), std=0.01)
+            self.actor_logstd = nn.Parameter(torch.zeros(1, np.prod(envs.single_action_space.shape)))
+            self.critic = layer_init(nn.Linear(512, 1), std=1)
 
     def get_value(self, x):
         return self.critic(self.network(x.permute((0, 3, 1, 2)) / 255.0))
 
+    def get_action_and_value(self, x, action=None):
+        hidden = self.network(x.permute((0, 3, 1, 2)) / 255.0)
+        if args.discrete_actions:
+            logits = self.actor(hidden)
+            probs = Categorical(logits=logits)
+            if action is None:
+                action = probs.sample()
+            return action, probs.log_prob(action), probs.entropy(), self.critic(hidden)
+        else:
+            action_mean = self.actor_mean(hidden)
+            action_logstd = self.actor_logstd.expand_as(action_mean)
+            action_std = torch.exp(action_logstd)
+            probs = Normal(action_mean, action_std)
+            if action is None:
+                action = probs.sample()
+            return action, probs.log_prob(action).sum(1), probs.entropy().sum(1), self.critic(hidden)
+
 
 if __name__ == "__main__":
     # --num-steps 32 --num-envs 6 --total-timesteps 256
+    from datetime import datetime
+
     args = parse_args()
     print(args)
-    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
-    args.track = False ################################# delete
+    run_name = f"{args.env_id}__{args.seed}__{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+    # Save json file with hyperparameters
+    with open(f"log/args/{run_name}.json", "w") as outfile:
+        json.dump(vars(args), outfile)
+
     if args.track:
         import wandb
 
@@ -185,10 +212,10 @@ if __name__ == "__main__":
     torch.backends.cudnn.deterministic = args.torch_deterministic
 
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
+    print("Device:", device)
 
     # env setup
-    num_envs = args.num_envs
-    envs = concat_vec_envs(make_env, num_envs // num_agents)
+    envs = concat_vec_envs(make_env, args.num_envs // args.num_agents)
     print("Observation space:", envs.observation_space)
     print("Action space:", envs.action_space)
     envs.single_observation_space = envs.observation_space
@@ -199,9 +226,6 @@ if __name__ == "__main__":
     envs.is_vector_env = True
     if args.capture_video:
         envs = gym.wrappers.RecordVideo(envs, f"videos/{run_name}")
-    assert isinstance(
-        envs.single_action_space, gym.spaces.Box
-    ), "only continuous action space is supported"
 
     agent = Agent(envs).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
@@ -227,6 +251,7 @@ if __name__ == "__main__":
     next_termination = torch.zeros(args.num_envs).to(device)
     next_truncation = torch.zeros(args.num_envs).to(device)
     num_updates = args.total_timesteps // args.batch_size
+    prev_info = {}
 
     for update in range(1, num_updates + 1):
         # Annealing the rate if instructed to do so.
@@ -260,22 +285,23 @@ if __name__ == "__main__":
             )
 
             # TODO: fix this
-            for idx, item in enumerate(info):
-                player_idx = idx % 2
-                if "episode" in item.keys():
+            for idx in range(args.num_envs):
+                player_idx = idx % 2 if args.num_agents == 2 else 0
+                if next_termination[idx]:
                     print(
-                        f"global_step={global_step}, {player_idx}-episodic_return={item['episode']['r']}"
+                        f"global_step={global_step}, {player_idx}-episodic_return={prev_info[idx]['episode']['r']}, {player_idx}-episodic_length={prev_info[idx]['episode']['l']}"
                     )
                     writer.add_scalar(
                         f"charts/episodic_return-player{player_idx}",
-                        item["episode"]["r"],
+                        prev_info[idx]["episode"]["r"],
                         global_step,
                     )
                     writer.add_scalar(
                         f"charts/episodic_length-player{player_idx}",
-                        item["episode"]["l"],
+                        prev_info[idx]["episode"]["l"],
                         global_step,
                     )
+            prev_info = info
 
         # bootstrap value if not done
         with torch.no_grad():
@@ -316,9 +342,14 @@ if __name__ == "__main__":
                 end = start + args.minibatch_size
                 mb_inds = b_inds[start:end]
 
-                _, newlogprob, entropy, newvalue = agent.get_action_and_value(
-                    b_obs[mb_inds], b_actions.long()[mb_inds]
-                )
+                if args.discrete_actions:
+                    _, newlogprob, entropy, newvalue = agent.get_action_and_value(
+                        b_obs[mb_inds], b_actions.long()[mb_inds]
+                    )
+                else:
+                    _, newlogprob, entropy, newvalue = agent.get_action_and_value(
+                        b_obs[mb_inds], b_actions[mb_inds]
+                    )
                 logratio = newlogprob - b_logprobs[mb_inds]
                 ratio = logratio.exp()
 
@@ -385,10 +416,15 @@ if __name__ == "__main__":
         writer.add_scalar("losses/approx_kl", approx_kl.item(), global_step)
         writer.add_scalar("losses/clipfrac", np.mean(clipfracs), global_step)
         writer.add_scalar("losses/explained_variance", explained_var, global_step)
-        print("SPS:", int(global_step / (time.time() - start_time)))
+        #print("SPS:", int(global_step / (time.time() - start_time)))
         writer.add_scalar(
             "charts/SPS", int(global_step / (time.time() - start_time)), global_step
         )
+
+        # Save model checkpoint
+        checkpoint_interval = num_updates // 100
+        if update % checkpoint_interval == 0:
+            torch.save(agent.state_dict(), f"log/ppo/{run_name}_{global_step}.pt")
 
     envs.close()
     writer.close()
