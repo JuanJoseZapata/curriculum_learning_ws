@@ -30,7 +30,7 @@ pip install -e .
 ## Usage
 
 ### Multi-Car Racing
-This repository contains a variant of [`MultiCarRacing-v0`](https://github.com/igilitschenski/multi_car_racing), which is itself a variant of Gym's [`CarRacing-v0`](https://gym.openai.com/envs/CarRacing-v0/). The code was modified in order to be used with [`PettingZoo`](https://pettingzoo.farama.org/) (multi-agent environments), ['CleanRL'](https://docs.cleanrl.dev/) and [`Tianshou`](https://tianshou.readthedocs.io/en/master/) (Reinforcement Learning libraries).
+This repository contains a variant of [`MultiCarRacing-v0`](https://github.com/igilitschenski/multi_car_racing), which is itself a variant of Gym's [`CarRacing-v0`](https://gym.openai.com/envs/CarRacing-v0/). The code was modified in order to be used with [`PettingZoo`](https://pettingzoo.farama.org/) (multi-agent environments), [`CleanRL`](https://docs.cleanrl.dev/) and [`Tianshou`](https://tianshou.readthedocs.io/en/master/) (Reinforcement Learning libraries).
 
 The environment has the following parameters:
 
@@ -106,7 +106,6 @@ python scripts/training_cleanrl.py --model-path <model_path>
 Available arguments for the testing script:
 | Parameter               | Type  | Description |
 |-------------------------| :---: |-------------|
-| `--exp-name`            | `str`   | Name of the experiment |
 | `--seed`                | `int`   | Seed of the experiment. Default `1` |
 | `--torch-deterministic` | `bool`  | If toggled, `torch.backends.cudnn.deterministic=True`. Default `True` |
 | `--cuda`                | `bool`  | If toggled, cuda will be enabled by default. Default `True` |
