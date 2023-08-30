@@ -1,5 +1,5 @@
-from concat_vec_env import ConcatVecEnv
-from multiproc_vec import ProcConcatVec
+from .concat_vec_env import ConcatVecEnv
+from .multiproc_vec import ProcConcatVec
 
 
 class call_wrap:

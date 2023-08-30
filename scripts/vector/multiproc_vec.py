@@ -14,7 +14,7 @@ from gymnasium.vector.utils import (
     write_to_shared_memory,
 )
 
-from utils.shared_array import SharedArray
+from .utils.shared_array import SharedArray
 
 
 def compress_info(infos):

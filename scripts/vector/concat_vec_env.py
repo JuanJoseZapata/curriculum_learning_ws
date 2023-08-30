@@ -2,7 +2,6 @@ import gymnasium.vector
 import numpy as np
 from gymnasium.spaces import Discrete
 from gymnasium.vector.utils import concatenate, create_empty_array, iterate
-from constructors import MakeCPUAsyncConstructor
 
 
 def transpose(ll):
