@@ -33,7 +33,7 @@ from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 
 from gym_multi_car_racing import multi_car_racing
-from concat_vec_env import concat_vec_envs
+from vector.vector_constructors import concat_vec_envs
 
 
 def parse_args():
@@ -43,6 +43,8 @@ def parse_args():
         help="the name of this experiment")
     parser.add_argument("--seed", type=int, default=1,
         help="seed of the experiment")
+    parser.add_argument("--num-workers", type=int, default=1,
+        help="Number of parallel workers for collecting rollouts")
     parser.add_argument("--torch-deterministic", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, `torch.backends.cudnn.deterministic=False`")
     parser.add_argument("--cuda", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
@@ -215,7 +217,7 @@ if __name__ == "__main__":
     print("Device:", device)
 
     # env setup
-    envs = concat_vec_envs(make_env, args.num_envs // args.num_agents)
+    envs = concat_vec_envs(make_env, args.num_envs // args.num_agents, num_cpus=args.num_workers)
     print("Observation space:", envs.observation_space)
     print("Action space:", envs.action_space)
     envs.single_observation_space = envs.observation_space
