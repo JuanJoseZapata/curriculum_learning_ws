@@ -16,7 +16,7 @@ from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 
 from gym_multi_car_racing import multi_car_racing
-from concat_vec_env import concat_vec_envs
+from vector.vector_constructors import concat_vec_envs
 
 
 def parse_args():
@@ -32,19 +32,17 @@ def parse_args():
         help="if toggled, `torch.backends.cudnn.deterministic=False`")
     parser.add_argument("--cuda", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, cuda will be enabled by default")
-    parser.add_argument("--num-episodes", type=int, default=5,
+    parser.add_argument("--num-episodes", type=int, default=10,
         help="number of episodes to test")
     parser.add_argument("--model-path", type=str, default=None,
         help="path to the model to be tested")
     parser.add_argument("--num-agents", type=int, default=1,
         help="number of agents in the environment")
-    parser.add_argument("--penalties", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
-        help="whether to add additional penalties to the environment")
     parser.add_argument("--frame-stack", type=int, default=4,
         help="number of stacked frames")
     parser.add_argument("--frame-skip", type=float, default=4,
         help="number of frames to skip (repeat action)")
-    parser.add_argument("--num-envs", type=int, default=2,  # 16
+    parser.add_argument("--num-envs", type=int, default=1,  # 16
         help="the number of parallel game environments")
     parser.add_argument("--discrete-actions", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="Whether to use a discrete action space")
@@ -123,7 +121,7 @@ if __name__ == "__main__":
     args = parse_args()
     print(args)
 
-    args.model_path = "log/ppo/multi_car_racing_discrete__1__20230829_084714_162000.pt"
+    args.model_path = "log/ppo/multi_car_racing__1__20230831_081254_3000000.pt"
 
     # TRY NOT TO MODIFY: seeding
     random.seed(args.seed)
