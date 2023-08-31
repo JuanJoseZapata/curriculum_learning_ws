@@ -103,6 +103,8 @@ def parse_args():
         help="the target KL divergence threshold")
     parser.add_argument("--discrete-actions", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="Whether to use a discrete action space")
+    parser.add_argument("--trained-agent", type=str, default=None,
+        help="file name of an already trained agent that will be further trained")
     args = parser.parse_args()
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
@@ -230,6 +232,10 @@ if __name__ == "__main__":
         envs = gym.wrappers.RecordVideo(envs, f"videos/{run_name}")
 
     agent = Agent(envs).to(device)
+    if args.trained_agent is not None:
+        agent.load_state_dict(torch.load(os.path.join("log/ppo", args.trained_agent)))
+        print("Loaded trained agent")
+
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # ALGO Logic: Storage setup
