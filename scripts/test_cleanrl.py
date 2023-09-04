@@ -15,7 +15,7 @@ from torch.distributions.normal import Normal
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 
-from gym_multi_car_racing import multi_car_racing
+from gym_multi_car_racing import multi_car_racing, multi_car_racing_f1
 from vector.vector_constructors import concat_vec_envs
 
 
@@ -26,7 +26,7 @@ def parse_args():
     # Algorithm specific arguments
     parser.add_argument("--env-id", type=str, default="multi_car_racing",
         help="the id of the environment")
-    parser.add_argument("--seed", type=int, default=1,
+    parser.add_argument("--seed", type=int, default=123,
         help="seed of the experiment")
     parser.add_argument("--torch-deterministic", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, `torch.backends.cudnn.deterministic=False`")
@@ -36,7 +36,9 @@ def parse_args():
         help="number of episodes to test")
     parser.add_argument("--model-path", type=str, default=None,
         help="path to the model to be tested")
-    parser.add_argument("--num-agents", type=int, default=1,
+    parser.add_argument("--track-name", type=str, default=None,
+        help="Formula 1 track name")
+    parser.add_argument("--num-agents", type=int, default=2,
         help="number of agents in the environment")
     parser.add_argument("--frame-stack", type=int, default=4,
         help="number of stacked frames")
@@ -54,9 +56,15 @@ def parse_args():
 def make_env():
 
     # env setup
-    env = multi_car_racing.parallel_env(n_agents=args.num_agents, use_random_direction=True,
-                               render_mode="human", penalties=args.penalties,
-                               discrete_action_space=args.discrete_actions)
+    if args.track_name is None:
+        env = multi_car_racing.parallel_env(n_agents=args.num_agents, use_random_direction=True,
+                                render_mode="human", discrete_action_space=args.discrete_actions)
+    else:
+        print("Track:", args.track_name)
+        env = multi_car_racing_f1.parallel_env(n_agents=args.num_agents, use_random_direction=True,
+                                render_mode="human", discrete_action_space=args.discrete_actions,
+                                track=args.track_name, verbose=1)
+    
     if not args.discrete_actions:
         env = ss.clip_actions_v0(env)
     if args.frame_skip > 1:
@@ -121,7 +129,9 @@ if __name__ == "__main__":
     args = parse_args()
     print(args)
 
-    args.model_path = "log/ppo/multi_car_racing__1__20230831_081254_3000000.pt"
+    args.model_path = "log/ppo/multi_car_racing__1__20230901_092434_2200000.pt"
+    args.num_agents = 1
+    args.track_name = None
 
     # TRY NOT TO MODIFY: seeding
     random.seed(args.seed)
