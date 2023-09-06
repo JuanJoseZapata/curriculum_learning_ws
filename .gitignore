@@ -185,4 +185,4 @@ checkpoint_**.pth
 checkpoint_***.pth
 
 # Notebooks
-*.ipynb
+MultiCarRacing.ipynb
