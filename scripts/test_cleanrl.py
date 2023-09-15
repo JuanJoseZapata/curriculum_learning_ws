@@ -15,7 +15,7 @@ from torch.distributions.normal import Normal
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 
-from gym_multi_car_racing import multi_car_racing, multi_car_racing_f1
+from gym_multi_car_racing import multi_car_racing, multi_car_racing_f1, multi_car_racing_bezier
 from vector.vector_constructors import concat_vec_envs
 
 
@@ -57,11 +57,11 @@ def make_env():
 
     # env setup
     if args.track_name is None:
-        env = multi_car_racing.parallel_env(n_agents=args.num_agents, use_random_direction=True,
-                                render_mode="human", discrete_action_space=args.discrete_actions)
+        env = multi_car_racing_bezier.parallel_env(n_agents=args.num_agents, use_random_direction=False,
+                                render_mode="state_pixels", discrete_action_space=args.discrete_actions, verbose=1)
     else:
         print("Track:", args.track_name)
-        env = multi_car_racing_f1.parallel_env(n_agents=args.num_agents, use_random_direction=True,
+        env = multi_car_racing_f1.parallel_env(n_agents=args.num_agents, use_random_direction=False,
                                 render_mode="human", discrete_action_space=args.discrete_actions,
                                 track=args.track_name, verbose=1)
     
@@ -129,7 +129,7 @@ if __name__ == "__main__":
     args = parse_args()
     print(args)
 
-    args.model_path = "log/ppo/multi_car_racing__1__20230901_092434_2200000.pt"
+    args.model_path = "log/ppo/multi_car_racing__1__20230831_161732_5454000.pt"
     args.num_agents = 1
     args.track_name = None
 
@@ -157,6 +157,8 @@ if __name__ == "__main__":
     agent.load_state_dict(torch.load(args.model_path))
 
     # Run
+    returns = []
+    lengths = []
     for episode in range(args.num_episodes):
         next_obs, info = envs.reset(seed=args.seed)
         next_obs = torch.Tensor(next_obs).to(device)
@@ -169,5 +171,10 @@ if __name__ == "__main__":
             next_obs = torch.Tensor(next_obs).to(device)
             episode_return += reward
             episode_length += 1
-        print(f"Episode {episode}: return={episode_return}, length={episode_length}")
+        print(f"Episode {episode}: return={episode_return}, length={episode_length}\n")
+        returns.append(episode_return)
+        lengths.append(episode_length)
+
+    print(f"Return: {np.mean(returns)} (+/-{np.std(returns)})")
+    print(f"Length: {np.mean(lengths)} (+/-{np.std(lengths)})")
 
