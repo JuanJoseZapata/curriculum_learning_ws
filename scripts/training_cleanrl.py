@@ -32,8 +32,11 @@ from torch.distributions.normal import Normal
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 
-from gym_multi_car_racing import multi_car_racing
+from gym_multi_car_racing import multi_car_racing, multi_car_racing_bezier
 from vector.vector_constructors import concat_vec_envs
+
+from track_generation.VAE import VAE
+from track_generation.track_generation import generate_track
 
 
 def parse_args():
@@ -73,7 +76,7 @@ def parse_args():
         help="number of stacked frames")
     parser.add_argument("--frame-skip", type=float, default=4,
         help="number of frames to skip (repeat action)")
-    parser.add_argument("--num-envs", type=int, default=16,  # 16
+    parser.add_argument("--num-envs", type=int, default=4,  # 16
         help="the number of parallel game environments")
     parser.add_argument("--num-steps", type=int, default=125,
         help="the number of steps to run in each environment per policy rollout")
@@ -115,8 +118,8 @@ def parse_args():
 def make_env():
 
     # env setup
-    env = multi_car_racing.parallel_env(n_agents=args.num_agents, use_random_direction=True,
-                               render_mode="state_pixels", penalties=args.penalties,
+    env = multi_car_racing_bezier.parallel_env(n_agents=args.num_agents, use_random_direction=True,
+                               render_mode="human", penalties=args.penalties,
                                discrete_action_space=args.discrete_actions)
     if not args.discrete_actions:
         env = ss.clip_actions_v0(env)
@@ -238,6 +241,12 @@ if __name__ == "__main__":
 
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
+    args.curriculum = False
+    if args.curriculum:
+        # Load VAE for track generation
+        vae = VAE(z_dim=24).to(device) # GPU
+        vae.load_state_dict(torch.load("scripts/track_generation/vae_64x64_24.pt"))
+
     # ALGO Logic: Storage setup
     obs = torch.zeros(
         (args.num_steps, args.num_envs) + envs.single_observation_space.shape
@@ -260,8 +269,30 @@ if __name__ == "__main__":
     next_truncation = torch.zeros(args.num_envs).to(device)
     num_updates = args.total_timesteps // args.batch_size
     prev_info = {}
+    track_vectors = []
+    reward_history = []
+    temp_rewards = []
 
     for update in range(1, num_updates + 1):
+
+        # Generate new track if all environments have finished an episode on the current track
+        # or if it is the first update
+        if (len(temp_rewards) >= args.num_envs or update == 1) and (args.curriculum):
+            # Use VAE to generate a new track
+            vector = torch.randn(1, 24).to(device)
+            track = generate_track(vae, vector)
+            track_vectors.append(vector)
+            for i, vec_env in enumerate(envs.vec_envs):
+                envs.vec_envs[i].par_env.unwrapped.loaded_track = track
+            next_obs, info = envs.reset(seed=args.seed)
+            next_obs = torch.Tensor(next_obs).to(device)
+            print("Generated new track")
+            # Calculate mean reward for the previous track
+            if len(temp_rewards) >= args.num_envs:
+                print(f"Track: {len(track_vectors) - 1}, mean reward {np.mean(temp_rewards)}")
+                reward_history.append(np.mean(temp_rewards))
+                temp_rewards = []
+
         # Annealing the rate if instructed to do so.
         if args.anneal_lr:
             frac = 1.0 - (update - 1.0) / num_updates
@@ -309,6 +340,8 @@ if __name__ == "__main__":
                         prev_info[idx]["episode"]["l"],
                         global_step,
                     )
+                    if args.curriculum:
+                        temp_rewards.append(prev_info[idx]["episode"]["r"])
             prev_info = info
 
         # bootstrap value if not done
