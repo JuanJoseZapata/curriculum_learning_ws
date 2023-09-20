@@ -64,7 +64,7 @@ def parse_args():
     # Algorithm specific arguments
     parser.add_argument("--env-id", type=str, default="multi_car_racing",
         help="the id of the environment")
-    parser.add_argument("--total-timesteps", type=int, default=5_500_000,
+    parser.add_argument("--total-timesteps", type=int, default=5_000_000,
         help="total timesteps of the experiments")
     parser.add_argument("--learning-rate", type=float, default=2e-4,
         help="the learning rate of the optimizer")
@@ -119,7 +119,7 @@ def make_env():
 
     # env setup
     env = multi_car_racing_bezier.parallel_env(n_agents=args.num_agents, use_random_direction=True,
-                               render_mode="human", penalties=args.penalties,
+                               render_mode="state_pixels", penalties=args.penalties,
                                discrete_action_space=args.discrete_actions)
     if not args.discrete_actions:
         env = ss.clip_actions_v0(env)
