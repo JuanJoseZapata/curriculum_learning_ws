@@ -46,7 +46,7 @@ def parse_args():
         help="the name of this experiment")
     parser.add_argument("--seed", type=int, default=1,
         help="seed of the experiment")
-    parser.add_argument("--num-workers", type=int, default=1,
+    parser.add_argument("--num-workers", type=int, default=16,
         help="Number of parallel workers for collecting rollouts")
     parser.add_argument("--torch-deterministic", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, `torch.backends.cudnn.deterministic=False`")
