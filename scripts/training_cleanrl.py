@@ -32,7 +32,7 @@ from torch.distributions.normal import Normal
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 
-from gym_multi_car_racing import multi_car_racing, multi_car_racing_bezier
+from gym_multi_car_racing import multi_car_racing_bezier
 from vector.vector_constructors import concat_vec_envs
 
 from track_generation.VAE import VAE
@@ -286,7 +286,6 @@ if __name__ == "__main__":
                 envs.vec_envs[i].par_env.unwrapped.loaded_track = track
             next_obs, info = envs.reset(seed=args.seed)
             next_obs = torch.Tensor(next_obs).to(device)
-            print("Generated new track")
             # Calculate mean reward for the previous track
             if len(temp_rewards) >= args.num_envs:
                 print(f"Track: {len(track_vectors) - 1}, mean reward {np.mean(temp_rewards)}")
