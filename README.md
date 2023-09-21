@@ -77,22 +77,22 @@ Available arguments for executing the training script:
 | `--wandb-project-name`  | `str`   | wandb project name. Default `multi_car_racing` |
 | `--env-id`              | `str`   | The id of the environment. Default `multi_car_racing` |
 | `--total-timesteps`     | `int`   | Total timesteps of the experiments. Default `5000000` |
-| `--learning-rate`       | `float` | Learning rate of the optimizer. Default `2e-4`    |
+| `--learning-rate`       | `float` | Learning rate of the optimizer. Default `3e-4`    |
 | `--num-agents`          | `int`   | Number of agents in the environment. Default `1` |
 | `--penalties`           | `bool`  | Whether to add additional penalties to the environment. Default `False`    |
 | `--frame-stack`         | `int`   | Number of stacked frames. Default `4` |
 | `--frame-skip`          | `int`   | Number of frames to skip (repeat action). Default `4` |
-| `--num-envs`            | `int`   | Number of parallel game environments. Default `16` |
-| `--num-steps`           | `int`   | Number of steps to run in each environment per policy rollout. Default 128 |
-| `--anneal-lr`           | `bool`  | Toggle learning rate annealing for policy and value networks. Default `True` |
+| `--num-envs`            | `int`   | Number of parallel game environments. Default `8` |
+| `--num-steps`           | `int`   | Number of steps to run in each environment per policy rollout. Default `125` |
+| `--anneal-lr`           | `bool`  | Toggle learning rate annealing for policy and value networks. Default `False` |
 | `--gamma`               | `float` | Discount factor gamma. Default `0.99` |
 | `--gae-lambda`          | `float` | Lambda for the general advantage estimation. Default `0.95` |
 | `--num-minibatches`     | `int`   | Number of num-minibatches. Default `4` |
-| `--update-epochs`       | `int`   | The K epochs to update the policy. Default `4` |
+| `--update-epochs`       | `int`   | The K epochs to update the policy. Default `8` |
 | `--norm-adv`            | `bool`  | Toggles advantages normalization. Default `True` |
 | `--clip-coef`           | `float` | Surrogate clipping coefficient. Default `0.2` |
 | `--clip-vloss`          | `bool`  | Toggles whether or not to use a clipped loss for the value function. Default `True` |
-| `--ent-coef`            | `float` | Coefficient of the entropy. Default `0.01` |
+| `--ent-coef`            | `float` | Coefficient of the entropy. Default `0.0` |
 | `--vf-coef`             | `float` | Coefficient of the value function. Default `0.5` |
 | `--max-grad-norm`       | `float` | The maximum norm for the gradient clipping. Default `0.5` |
 | `--target-kl`           | `float` | The target KL divergence threshold. Default `None` |
