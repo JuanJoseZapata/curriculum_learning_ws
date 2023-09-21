@@ -74,7 +74,7 @@ def parse_args():
         help="whether to add additional penalties to the environment")
     parser.add_argument("--frame-stack", type=int, default=4,
         help="number of stacked frames")
-    parser.add_argument("--frame-skip", type=float, default=4,
+    parser.add_argument("--frame-skip", type=int, default=4,
         help="number of frames to skip (repeat action)")
     parser.add_argument("--num-envs", type=int, default=8,
         help="the number of parallel game environments")
