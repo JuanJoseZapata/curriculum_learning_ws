@@ -108,6 +108,8 @@ def parse_args():
         help="Whether to use a discrete action space")
     parser.add_argument("--trained-agent", type=str, default=None,
         help="file name of an already trained agent that will be further trained")
+    parser.add_argument("--curriculum", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
+        help="Whether to use curriculum learning")
     args = parser.parse_args()
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
@@ -241,7 +243,6 @@ if __name__ == "__main__":
 
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
-    args.curriculum = False
     if args.curriculum:
         # Load VAE for track generation
         vae = VAE(z_dim=24).to(device) # GPU
