@@ -96,7 +96,7 @@ def parse_args():
         help="the surrogate clipping coefficient")
     parser.add_argument("--clip-vloss", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="Toggles whether or not to use a clipped loss for the value function, as per the paper.")
-    parser.add_argument("--ent-coef", type=float, default=0.0,
+    parser.add_argument("--ent-coef", type=float, default=0.01,
         help="coefficient of the entropy")
     parser.add_argument("--vf-coef", type=float, default=0.5,
         help="coefficient of the value function")
@@ -195,7 +195,7 @@ if __name__ == "__main__":
     with open(f"log/args/{run_name}.json", "w") as outfile:
         json.dump(vars(args), outfile)
 
-    if args.track:
+    if False and args.track:
         import wandb
 
         wandb.init(
