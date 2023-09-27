@@ -104,6 +104,8 @@ def parse_args():
         help="the maximum norm for the gradient clipping")
     parser.add_argument("--target-kl", type=float, default=None,
         help="the target KL divergence threshold")
+    parser.add_argument("--weight-decay", type=float, default=1e-5,
+        help="Adam optimizer weight decay")
     parser.add_argument("--discrete-actions", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="Whether to use a discrete action space")
     parser.add_argument("--trained-agent", type=str, default=None,
@@ -241,7 +243,7 @@ if __name__ == "__main__":
         agent.load_state_dict(torch.load(os.path.join("log/ppo", args.trained_agent)))
         print("Loaded trained agent")
 
-    optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-8)
+    optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-8, weight_decay=args.weight_decay)
 
     if args.curriculum:
         # Load VAE for track generation
