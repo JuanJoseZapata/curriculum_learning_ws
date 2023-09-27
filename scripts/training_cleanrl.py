@@ -241,7 +241,7 @@ if __name__ == "__main__":
         agent.load_state_dict(torch.load(os.path.join("log/ppo", args.trained_agent)))
         print("Loaded trained agent")
 
-    optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
+    optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-8)
 
     if args.curriculum:
         # Load VAE for track generation
