@@ -26,9 +26,9 @@ def parse_args():
     # Algorithm specific arguments
     parser.add_argument("--env-id", type=str, default="multi_car_racing",
         help="the id of the environment")
-    parser.add_argument("--seed", type=int, default=123,
+    parser.add_argument("--seed", type=int, default=1,
         help="seed of the experiment")
-    parser.add_argument("--torch-deterministic", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
+    parser.add_argument("--torch-deterministic", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="if toggled, `torch.backends.cudnn.deterministic=False`")
     parser.add_argument("--cuda", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, cuda will be enabled by default")
@@ -57,12 +57,12 @@ def make_env():
 
     # env setup
     if args.track_name is None:
-        env = multi_car_racing_bezier.parallel_env(n_agents=args.num_agents, use_random_direction=False,
+        env = multi_car_racing_bezier.parallel_env(n_agents=args.num_agents, use_random_direction=True,
                                 render_mode="state_pixels", discrete_action_space=args.discrete_actions, verbose=1)
     else:
         print("Track:", args.track_name)
         env = multi_car_racing_f1.parallel_env(n_agents=args.num_agents, use_random_direction=False,
-                                render_mode="human", discrete_action_space=args.discrete_actions,
+                                render_mode="state_pixels", discrete_action_space=args.discrete_actions,
                                 track=args.track_name, verbose=1)
     
     if not args.discrete_actions:
@@ -129,10 +129,6 @@ if __name__ == "__main__":
     args = parse_args()
     print(args)
 
-    args.model_path = "log/ppo/multi_car_racing__1__20230831_161732_5454000.pt"
-    args.num_agents = 1
-    args.track_name = None
-
     # TRY NOT TO MODIFY: seeding
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -174,7 +170,9 @@ if __name__ == "__main__":
         print(f"Episode {episode}: return={episode_return}, length={episode_length}\n")
         returns.append(episode_return)
         lengths.append(episode_length)
-
+    
+    if args.track_name is not None:
+        print(f"Track: {args.track_name}")
     print(f"Return: {np.mean(returns)} (+/-{np.std(returns)})")
     print(f"Length: {np.mean(lengths)} (+/-{np.std(lengths)})")
 
