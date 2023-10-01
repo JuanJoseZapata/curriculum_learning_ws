@@ -32,7 +32,7 @@ from torch.distributions.normal import Normal
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 
-from gym_multi_car_racing import multi_car_racing_bezier
+from gym_multi_car_racing import multi_car_racing, multi_car_racing_bezier
 from vector.vector_constructors import concat_vec_envs
 
 from track_generation.VAE import VAE
@@ -110,6 +110,8 @@ def parse_args():
         help="Whether to use a discrete action space")
     parser.add_argument("--trained-agent", type=str, default=None,
         help="file name of an already trained agent that will be further trained")
+    parser.add_argument("--bezier", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
+        help="Whether to use bezier curves for the track")
     parser.add_argument("--curriculum", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="Whether to use curriculum learning")
     args = parser.parse_args()
@@ -122,9 +124,14 @@ def parse_args():
 def make_env():
 
     # env setup
-    env = multi_car_racing_bezier.parallel_env(n_agents=args.num_agents, use_random_direction=True,
-                               render_mode="state_pixels", penalties=args.penalties,
-                               discrete_action_space=args.discrete_actions)
+    if args.bezier:
+        env = multi_car_racing_bezier.parallel_env(n_agents=args.num_agents, use_random_direction=True,
+                                render_mode="state_pixels", penalties=args.penalties,
+                                discrete_action_space=args.discrete_actions)
+    else:
+        env = multi_car_racing.parallel_env(n_agents=args.num_agents, use_random_direction=True,
+                                render_mode="state_pixels", penalties=args.penalties,
+                                discrete_action_space=args.discrete_actions)
     if not args.discrete_actions:
         env = ss.clip_actions_v0(env)
     if args.frame_skip > 1:
