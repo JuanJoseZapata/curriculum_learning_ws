@@ -76,7 +76,7 @@ def parse_args():
         help="number of stacked frames")
     parser.add_argument("--frame-skip", type=int, default=4,
         help="number of frames to skip (repeat action)")
-    parser.add_argument("--num-envs", type=int, default=8,
+    parser.add_argument("--num-envs", type=int, default=16,
         help="the number of parallel game environments")
     parser.add_argument("--num-steps", type=int, default=125,
         help="the number of steps to run in each environment per policy rollout")
@@ -104,7 +104,7 @@ def parse_args():
         help="the maximum norm for the gradient clipping")
     parser.add_argument("--target-kl", type=float, default=None,
         help="the target KL divergence threshold")
-    parser.add_argument("--weight-decay", type=float, default=1e-5,
+    parser.add_argument("--weight-decay", type=float, default=0,
         help="Adam optimizer weight decay")
     parser.add_argument("--discrete-actions", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="Whether to use a discrete action space")
@@ -115,7 +115,7 @@ def parse_args():
     parser.add_argument("--curriculum", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="Whether to use curriculum learning")
     args = parser.parse_args()
-    args.batch_size = int(args.num_envs * args.num_steps)
+    args.batch_size = int(args.num_envs // args.num_agents * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     # fmt: on
     return args
@@ -309,7 +309,7 @@ if __name__ == "__main__":
             optimizer.param_groups[0]["lr"] = lrnow
 
         for step in range(0, args.num_steps):
-            global_step += 1 * args.num_envs
+            global_step += 1 * args.num_envs // args.num_agents
             obs[step] = next_obs
             terminations[step] = next_termination
             truncations[step] = next_truncation
@@ -376,12 +376,20 @@ if __name__ == "__main__":
             returns = advantages + values
 
         # flatten the batch
-        b_obs = obs.reshape((-1,) + envs.single_observation_space.shape)
-        b_logprobs = logprobs.reshape(-1)
-        b_actions = actions.reshape((-1,) + envs.single_action_space.shape)
-        b_advantages = advantages.reshape(-1)
-        b_returns = returns.reshape(-1)
-        b_values = values.reshape(-1)
+        if args.num_agents == 2:
+            b_obs = obs[:,::2,:,:,:].reshape((-1,) + envs.single_observation_space.shape)
+            b_logprobs = logprobs[:,::2].reshape(-1)
+            b_actions = actions[:,::2,:].reshape((-1,) + envs.single_action_space.shape)
+            b_advantages = advantages[:,::2].reshape(-1)
+            b_returns = returns[:,::2].reshape(-1)
+            b_values = values[:,::2].reshape(-1)
+        else:
+            b_obs = obs.reshape((-1,) + envs.single_observation_space.shape)
+            b_logprobs = logprobs.reshape(-1)
+            b_actions = actions.reshape((-1,) + envs.single_action_space.shape)
+            b_advantages = advantages.reshape(-1)
+            b_returns = returns.reshape(-1)
+            b_values = values.reshape(-1)
 
         # Optimizing the policy and value network
         b_inds = np.arange(args.batch_size)
