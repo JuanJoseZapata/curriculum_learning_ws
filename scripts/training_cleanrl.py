@@ -126,11 +126,11 @@ def make_env():
     # env setup
     if args.bezier:
         env = multi_car_racing_bezier.parallel_env(n_agents=args.num_agents, use_random_direction=True,
-                                render_mode="state_pixels", penalties=args.penalties,
+                                render_mode="state_pixels", penalties=args.penalties, use_ego_color=True,
                                 discrete_action_space=args.discrete_actions)
     else:
         env = multi_car_racing.parallel_env(n_agents=args.num_agents, use_random_direction=True,
-                                render_mode="state_pixels", penalties=args.penalties,
+                                render_mode="state_pixels", penalties=args.penalties, use_ego_color=True,
                                 discrete_action_space=args.discrete_actions)
     if not args.discrete_actions:
         env = ss.clip_actions_v0(env)
