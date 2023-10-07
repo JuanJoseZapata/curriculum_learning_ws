@@ -72,7 +72,7 @@ def parse_args():
         help="number of agents in the environment")
     parser.add_argument("--penalties", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="whether to add additional penalties to the environment")
-    parser.add_argument("--penalty-weight", type=float, default=2.5e-5,
+    parser.add_argument("--penalty-weight", type=float, default=0.1,
         help="weight of the penalties")
     parser.add_argument("--frame-stack", type=int, default=4,
         help="number of stacked frames")
@@ -98,6 +98,8 @@ def parse_args():
         help="the surrogate clipping coefficient")
     parser.add_argument("--clip-vloss", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="Toggles whether or not to use a clipped loss for the value function, as per the paper.")
+    parser.add_argument("--clip-rewards", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
+        help="whether to clip rewards or not")
     parser.add_argument("--ent-coef", type=float, default=0.01,
         help="coefficient of the entropy")
     parser.add_argument("--vf-coef", type=float, default=0.5,
@@ -128,7 +130,8 @@ def make_env():
     # env setup
     if args.bezier:
         env = multi_car_racing_bezier.parallel_env(n_agents=args.num_agents, use_random_direction=True,
-                                render_mode="state_pixels", penalties=args.penalties, use_ego_color=True,
+                                render_mode="state_pixels", penalties=args.penalties,
+                                penalty_weight=args.penalty_weight, use_ego_color=True,
                                 discrete_action_space=args.discrete_actions)
     else:
         env = multi_car_racing.parallel_env(n_agents=args.num_agents, use_random_direction=True,
@@ -140,6 +143,9 @@ def make_env():
         env = ss.frame_skip_v0(env, args.frame_skip)
     if args.frame_stack > 1:
         env = ss.frame_stack_v1(env, args.frame_stack)
+    if args.clip_rewards:
+        env.render_mode = None
+        env = ss.clip_reward_v0(env, lower_bound=-3, upper_bound=3)
     env = ss.pettingzoo_env_to_vec_env_v1(env)
 
     return env
