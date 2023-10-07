@@ -72,6 +72,8 @@ def parse_args():
         help="number of agents in the environment")
     parser.add_argument("--penalties", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="whether to add additional penalties to the environment")
+    parser.add_argument("--penalty-weight", type=float, default=2.5e-5,
+        help="weight of the penalties")
     parser.add_argument("--frame-stack", type=int, default=4,
         help="number of stacked frames")
     parser.add_argument("--frame-skip", type=int, default=4,
