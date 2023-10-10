@@ -100,6 +100,8 @@ def parse_args():
         help="Toggles whether or not to use a clipped loss for the value function, as per the paper.")
     parser.add_argument("--clip-rewards", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="whether to clip rewards or not")
+    parser.add_argument("--norm-rew", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
+        help="whether to normalize rewards or not")
     parser.add_argument("--ent-coef", type=float, default=0.01,
         help="coefficient of the entropy")
     parser.add_argument("--vf-coef", type=float, default=0.5,
@@ -217,8 +219,8 @@ def make_env():
         env.render_mode = None
         env = ss.clip_reward_v0(env, lower_bound=-3, upper_bound=3)
     env = ss.pettingzoo_env_to_vec_env_v1(env)
-    # Normalize rewards
-    env = NormalizedEnv(env)
+    if args.norm_rew:
+        env = NormalizedEnv(env)
 
     return env
 
