@@ -22,7 +22,7 @@ class ConcatVecEnv(gymnasium.vector.VectorEnv):
         self.metadata = self.vec_envs[0].metadata
         self.observation_space = vec_envs[0].observation_space
         self.action_space = vec_envs[0].action_space
-        tot_num_envs = sum(env.num_envs for env in vec_envs)
+        tot_num_envs = sum(env.unwrapped.num_envs for env in vec_envs)
         self.num_envs = tot_num_envs
 
     def reset(self, seed=None, options=None):
@@ -77,11 +77,11 @@ class ConcatVecEnv(gymnasium.vector.VectorEnv):
             data.append(
                 venv.step(
                     self.concatenate_actions(
-                        actions[idx : idx + venv.num_envs], venv.num_envs
+                        actions[idx : idx + venv.unwrapped.num_envs], venv.unwrapped.num_envs
                     )
                 )
             )
-            idx += venv.num_envs
+            idx += venv.unwrapped.num_envs
         observations, rewards, terminations, truncations, infos = transpose(data)
         observations = self.concat_obs(observations)
         rewards = np.concatenate(rewards, axis=0)
