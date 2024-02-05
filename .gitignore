@@ -181,8 +181,8 @@ scripts/wandb
 runs/
 wandb/
 checkpoint_*.pth
-checkpoint_**.pth
-checkpoint_***.pth
+multi_car_racing__*__*.json
+multi_car_racing__*__*.pt
 
 # Notebooks
 MultiCarRacing.ipynb
