@@ -103,6 +103,15 @@ def async_loop(
                     if data == "rgb_array":
                         comp_infos = render_result
 
+                elif name == "get_control_points":
+                    control_points = vec_env.vec_envs[0].par_env.unwrapped.get_control_points()
+                    comp_infos = control_points
+
+                elif name == "set_control_points":
+                    env_num = data[0]
+                    control_points = data[1]
+                    vec_env.vec_envs[env_num].par_env.unwrapped.set_control_points(control_points)
+
                 else:
                     raise AssertionError("bad tuple instruction name: " + name)
             elif instr == "terminate":
@@ -184,6 +193,20 @@ class ProcConcatVec(gymnasium.vector.VectorEnv):
         info = self._receive_info()
 
         return numpy_deepcopy(self.observations_buffers), copy.deepcopy(info)
+
+    def get_control_points(self):
+        for i, pipe in enumerate(self.pipes):
+            pipe.send(("get_control_points", (None, None)))
+        
+        info = self._receive_info()
+
+        return copy.deepcopy(info)
+
+    def set_control_points(self, env_num, control_points):
+        for i, pipe in enumerate(self.pipes):
+            pipe.send(("set_control_points", (env_num, control_points)))
+        #self.pipes[env_num].send(("set_control_points", (env_num, control_points)))
+
 
     def step_async(self, actions):
         actions = list(iterate(self.action_space, actions))
