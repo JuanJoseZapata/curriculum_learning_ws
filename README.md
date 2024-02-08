@@ -131,6 +131,8 @@ Available arguments for the testing script:
 | `--discrete-actions`    | `bool`  | Whether to use a discrete action space. Default `False` |
 
 ## MiniGrid
+![image](https://github.com/JuanJoseZapata/curriculum_learning_ws/assets/66514932/0f1936fc-b54c-4303-b636-a1a40fc97180)
+
 The second environment used in this work is the `MiniGrid` environment. It is a customized version of the original [`MiniGrid`](https://minigrid.farama.org/) environment from Farama Foundation.
 
 This environment is a simple grid world environment with a 2D grid of tiles. The agent can move forward or change direction (left or right). The objective of the agent is to reach the goal tile in the smallest number of steps.
