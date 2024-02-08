@@ -66,13 +66,13 @@ The _scripts_ folder contains the following scripts:
 - `test_multi_car_racing_env.py`: Test script (Tianshou).
 
 ### Training
-The training is done using the script in `training_cleanrl.py`. The script can be run using the following command:
+The training is done using the script in `train_car_racing.py`. The script can be run using the following command:
 ```bash
-python scripts/training_cleanrl.py
+python scripts/train_car_racing.py
 ```
 Training parameters can be set using command-line arguments, for example
 ```bash
-python scripts/training_cleanrl.py --total-timesteps 5000000 --num-agents 2
+python scripts/train_car_racing.py --total-timesteps 5000000 --num-agents 2
 ```
 Available arguments for executing the training script:
 | Parameter               | Type  | Description |
@@ -112,9 +112,9 @@ Available arguments for executing the training script:
 | `--trained-agent`      | `str`   | Path to a trained agent to be loaded. Default `None` |
 
 ### Testing
-Evaluation is done similarly to training. The file `test_cleanrl.py` contains the testing script, which can be run with the command:
+Evaluation is done similarly to training. The file `test_car_racing.py` contains the testing script, which can be run with the command:
  ```bash
-python scripts/training_cleanrl.py --model-path <model_path>
+python scripts/test_car_racing.py --model-path <model_path>
 ```
 Available arguments for the testing script:
 | Parameter               | Type  | Description |
