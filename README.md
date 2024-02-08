@@ -1,7 +1,5 @@
 # Curriculum Learning for Deep Reinforcement Learning
 
-![image](https://github.com/JuanJoseZapata/curriculum_learning_ws/assets/66514932/e0c20154-774a-474f-b2a3-4a60ce32c4f6)
-
 Juan José Zapata González\
 Karlsruhe Institute of Technology (KIT)\
 Institute of Measurement and Control Systems (MRT)\
@@ -35,6 +33,9 @@ pip install -e .
 ## Usage
 
 ### Multi-Car Racing
+
+![image](https://github.com/JuanJoseZapata/curriculum_learning_ws/assets/66514932/e0c20154-774a-474f-b2a3-4a60ce32c4f6)
+
 This repository contains a variant of [`MultiCarRacing-v0`](https://github.com/igilitschenski/multi_car_racing), which is itself a variant of Gym's [`CarRacing-v0`](https://gym.openai.com/envs/CarRacing-v0/). The code was modified in order to be used with [`PettingZoo`](https://pettingzoo.farama.org/) (multi-agent environments) and [`CleanRL`](https://docs.cleanrl.dev/).
 
 This environment is a multi-agent, 2D top-down racing game where the agents control cars and try to complete a track. The agents get a reward for each tile they visit and a penalty for driving on grass. Additionally, the agents receive a small negative reward for each time step. The episode ends when the agents complete the track or when 1000 steps are reached.
