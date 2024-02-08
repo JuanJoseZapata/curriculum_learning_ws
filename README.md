@@ -23,14 +23,21 @@ git submodule update
 ```
 3. Install `multi_car_racing` environment:
 ```bash
-cd multi_car_racing
+cd envs/multi_car_racing
+pip install -e .
+```
+4. Install `minigrid` environment:
+```bash
+cd envs/minigrid
 pip install -e .
 ```
 
 ## Usage
 
 ### Multi-Car Racing
-This repository contains a variant of [`MultiCarRacing-v0`](https://github.com/igilitschenski/multi_car_racing), which is itself a variant of Gym's [`CarRacing-v0`](https://gym.openai.com/envs/CarRacing-v0/). The code was modified in order to be used with [`PettingZoo`](https://pettingzoo.farama.org/) (multi-agent environments), [`CleanRL`](https://docs.cleanrl.dev/) and [`Tianshou`](https://tianshou.readthedocs.io/en/master/) (Reinforcement Learning libraries).
+This repository contains a variant of [`MultiCarRacing-v0`](https://github.com/igilitschenski/multi_car_racing), which is itself a variant of Gym's [`CarRacing-v0`](https://gym.openai.com/envs/CarRacing-v0/). The code was modified in order to be used with [`PettingZoo`](https://pettingzoo.farama.org/) (multi-agent environments) and [`CleanRL`](https://docs.cleanrl.dev/).
+
+This environment is a multi-agent, 2D top-down racing game where the agents control cars and try to complete a track. The agents get a reward for each tile they visit and a penalty for driving on grass. Additionally, the agents receive a small negative reward for each time step. The episode ends when the agents complete the track or when 1000 steps are reached.
 
 The environment has the following parameters:
 
@@ -122,3 +129,10 @@ Available arguments for the testing script:
 | `--frame-skip`          | `int`   | Number of frames to skip (repeat action). Default `4` |
 | `--num-envs`            | `int`   | Number of parallel game environments. Default `1` |
 | `--discrete-actions`    | `bool`  | Whether to use a discrete action space. Default `False` |
+
+## MiniGrid
+The second environment used in this work is the `MiniGrid` environment. It is a customized version of the original [`MiniGrid`](https://minigrid.farama.org/) environment from Farama Foundation.
+
+This environment is a simple grid world environment with a 2D grid of tiles. The agent can move forward or change direction (left or right). The objective of the agent is to reach the goal tile in the smallest number of steps.
+
+. The goal of the agent is to reach the goal tile while avoiding obstacles and collecting rewards. The environment is a single-agent environment.
