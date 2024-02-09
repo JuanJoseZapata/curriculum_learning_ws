@@ -1,7 +1,5 @@
 # Curriculum Learning for Deep Reinforcement Learning
 
-![image](https://github.com/JuanJoseZapata/curriculum_learning_ws/assets/66514932/e0c20154-774a-474f-b2a3-4a60ce32c4f6)
-
 Juan José Zapata González\
 Karlsruhe Institute of Technology (KIT)\
 Institute of Measurement and Control Systems (MRT)\
@@ -35,6 +33,9 @@ pip install -e .
 ## Usage
 
 ### Multi-Car Racing
+
+![image](https://github.com/JuanJoseZapata/curriculum_learning_ws/assets/66514932/e0c20154-774a-474f-b2a3-4a60ce32c4f6)
+
 This repository contains a variant of [`MultiCarRacing-v0`](https://github.com/igilitschenski/multi_car_racing), which is itself a variant of Gym's [`CarRacing-v0`](https://gym.openai.com/envs/CarRacing-v0/). The code was modified in order to be used with [`PettingZoo`](https://pettingzoo.farama.org/) (multi-agent environments) and [`CleanRL`](https://docs.cleanrl.dev/).
 
 This environment is a multi-agent, 2D top-down racing game where the agents control cars and try to complete a track. The agents get a reward for each tile they visit and a penalty for driving on grass. Additionally, the agents receive a small negative reward for each time step. The episode ends when the agents complete the track or when 1000 steps are reached.
@@ -65,13 +66,13 @@ The _scripts_ folder contains the following scripts:
 - `test_multi_car_racing_env.py`: Test script (Tianshou).
 
 ### Training
-The training is done using the script in `training_cleanrl.py`. The script can be run using the following command:
+The training is done using the script in `train_car_racing.py`. The script can be run using the following command:
 ```bash
-python scripts/training_cleanrl.py
+python scripts/train_car_racing.py
 ```
 Training parameters can be set using command-line arguments, for example
 ```bash
-python scripts/training_cleanrl.py --total-timesteps 5000000 --num-agents 2
+python scripts/train_car_racing.py --total-timesteps 5000000 --num-agents 2
 ```
 Available arguments for executing the training script:
 | Parameter               | Type  | Description |
@@ -111,9 +112,9 @@ Available arguments for executing the training script:
 | `--trained-agent`      | `str`   | Path to a trained agent to be loaded. Default `None` |
 
 ### Testing
-Evaluation is done similarly to training. The file `test_cleanrl.py` contains the testing script, which can be run with the command:
+Evaluation is done similarly to training. The file `test_car_racing.py` contains the testing script, which can be run with the command:
  ```bash
-python scripts/training_cleanrl.py --model-path <model_path>
+python scripts/test_car_racing.py --model-path <model_path>
 ```
 Available arguments for the testing script:
 | Parameter               | Type  | Description |
@@ -131,6 +132,8 @@ Available arguments for the testing script:
 | `--discrete-actions`    | `bool`  | Whether to use a discrete action space. Default `False` |
 
 ## MiniGrid
+![image](https://github.com/JuanJoseZapata/curriculum_learning_ws/assets/66514932/0f1936fc-b54c-4303-b636-a1a40fc97180)
+
 The second environment used in this work is the `MiniGrid` environment. It is a customized version of the original [`MiniGrid`](https://minigrid.farama.org/) environment from Farama Foundation.
 
 This environment is a simple grid world environment with a 2D grid of tiles. The agent can move forward or change direction (left or right). The objective of the agent is to reach the goal tile in the smallest number of steps.
