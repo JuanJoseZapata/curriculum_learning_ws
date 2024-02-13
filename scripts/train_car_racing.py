@@ -35,9 +35,6 @@ from torch.utils.tensorboard import SummaryWriter
 from gym_multi_car_racing import multi_car_racing, multi_car_racing_bezier
 from vector.vector_constructors import concat_vec_envs
 
-from track_generation.VAE import VAE
-from track_generation.track_generation import generate_track
-
 
 def parse_args():
     # fmt: off
