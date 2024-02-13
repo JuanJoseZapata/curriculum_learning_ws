@@ -212,6 +212,7 @@ class Env(MiniGridEnv):
 
         if self.step_count >= self.max_steps:
             truncated = True
+            terminated = True
 
         if self.render_mode == "human":
             self.render()
