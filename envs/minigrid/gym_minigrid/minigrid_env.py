@@ -23,6 +23,7 @@ class Env(MiniGridEnv):
         self.agent_start_dir = None
         self.num_tiles = num_tiles
         self.num_envs = 1
+        self.size = size
 
         mission_space = MissionSpace(mission_func=self._gen_mission)
 
