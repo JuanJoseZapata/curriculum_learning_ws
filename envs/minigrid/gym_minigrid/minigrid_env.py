@@ -219,7 +219,7 @@ class Env(MiniGridEnv):
 
         obs = self.gen_obs()
 
-        info = [{'r': reward, 'l': self.step_count, 't': terminated, 'truncated': truncated}]
+        info = {'episode': {'r': reward, 'l': self.step_count, 't': terminated, 'truncated': truncated}}
 
         return obs, reward, terminated, truncated, info
 
