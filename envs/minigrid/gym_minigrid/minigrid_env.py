@@ -16,15 +16,11 @@ class Env(MiniGridEnv):
         self,
         size=10,
         max_steps: int | None = None,
-        width=10,
-        height=10,
         num_tiles: int = 25,
         **kwargs,
     ):
         self.agent_start_pos = None
         self.agent_start_dir = None
-        self.width = width
-        self.height = height
         self.num_tiles = num_tiles
         self.num_envs = 1
 
@@ -47,7 +43,7 @@ class Env(MiniGridEnv):
         return "grand mission"
 
     def _rand_pos(self):
-        x, y = random.randint(1, self.width - 2), random.randint(1, self.height - 2)
+        x, y = random.randint(1, self.size - 2), random.randint(1, self.size - 2)
         return x, y
 
     def place_goal(self, position=None):
@@ -76,10 +72,10 @@ class Env(MiniGridEnv):
 
     def _gen_grid(self, width, height):
         # Create an empty grid
-        self.grid = Grid(self.width, self.height)
+        self.grid = Grid(self.size, self.size)
 
         # Generate the surrounding walls
-        self.grid.wall_rect(0, 0, self.width, self.height)
+        self.grid.wall_rect(0, 0, self.size, self.size)
 
         # Place a goal square in a random position
         self.place_goal()
@@ -90,10 +86,6 @@ class Env(MiniGridEnv):
             self.agent_dir = self.agent_start_dir
         else:
             self.place_agent()
-
-        # Generate vertical separation wall
-        # for i in range(0, height):
-        #     self.grid.set(5, i, Wall())
 
         # Generate N random blocks
         self.blocks = []
@@ -123,7 +115,7 @@ class Env(MiniGridEnv):
         self.agent_start_dir = None
 
         # Generate a new random grid at the start of each episode
-        self._gen_grid(self.width, self.height)
+        self._gen_grid(self.size, self.size)
 
         # These fields should be defined by _gen_grid
         assert (
