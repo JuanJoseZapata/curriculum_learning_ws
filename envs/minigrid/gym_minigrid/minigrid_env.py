@@ -8,7 +8,9 @@ from minigrid.core.mission import MissionSpace
 from minigrid.core.world_object import Door, Goal, Key, Wall
 from minigrid.manual_control import ManualControl
 from minigrid.minigrid_env import MiniGridEnv
+from .minigrid_levels import get_minigrid_level
 import random
+import numpy as np
 
 
 class Env(MiniGridEnv):
@@ -17,22 +19,39 @@ class Env(MiniGridEnv):
         size=10,
         max_steps: int | None = None,
         num_tiles: int = 25,
+        level: str | None = None,
+        agent_start_pos: list | None = None,
+        agent_start_dir: int | None = None,
+        goal_pos: list | None = None,
+        bit_map: np.ndarray | None = None,
         **kwargs,
     ):
-        self.agent_start_pos = None
-        self.agent_start_dir = None
+        self.level = level
         self.num_tiles = num_tiles
         self.num_envs = 1
+        self.agent_start_pos = np.array(agent_start_pos) if agent_start_pos is not None else None
+        self.agent_start_dir = agent_start_dir
+        self.goal_pos = np.array(goal_pos) if goal_pos is not None else None
+        self.bit_map = bit_map
         self.size = size
+        self.blocks = []
+
+        if self.level is not None:
+            self.bit_map, self.agent_start_pos, self.goal_pos = get_minigrid_level(self.level)
+        if self.bit_map is not None:
+            self.size = self.bit_map.shape[0] + 2          
+
+        self.width = self.size
+        self.height = self.size
 
         mission_space = MissionSpace(mission_func=self._gen_mission)
 
         if max_steps is None:
-            max_steps = 4 * size**2
+            max_steps = 4 * self.size**2
 
         super().__init__(
             mission_space=mission_space,
-            grid_size=size,
+            grid_size=self.size,
             # Set this to True for maximum speed
             see_through_walls=True,
             max_steps=max_steps,
@@ -44,60 +63,64 @@ class Env(MiniGridEnv):
         return "grand mission"
 
     def _rand_pos(self):
-        x, y = random.randint(1, self.size - 2), random.randint(1, self.size - 2)
-        return x, y
-
+        for i in range(10_000):
+            x, y = random.randint(1, self.size - 2), random.randint(1, self.size - 2)
+            if (x, y) not in self.blocks:
+                return np.array([x, y])
+        raise ValueError("Failed to find an empty cell")
+        
     def place_goal(self, position=None):
-        if position is not None:
-            x_goal, y_goal = position
-        else:
-            x_goal, y_goal = self._rand_pos()
-        self.put_obj(Goal(), x_goal, y_goal)
-        self.goal_pos = (x_goal, y_goal)
+        if self.goal_pos is None:
+            while True:
+                self.goal_pos = self._rand_pos()
+                if (self.goal_pos != self.agent_start_pos).all():
+                    break
+        self.put_obj(Goal(), self.goal_pos[0], self.goal_pos[1])
 
-    def place_agent(self, position=None, direction=None):
-        if position is not None:
-            x_agent, y_agent = position
-        else:
+    def place_agent(self):
+        if self.agent_start_pos is None:
             while True:
                 self.agent_start_pos = self._rand_pos()
-                if (self.agent_start_pos != self.goal_pos):
+                if (self.agent_start_pos != self.goal_pos).all():
                     break
-        if direction is not None:
-            self.agent_start_dir = direction
-        else:
-            self.agent_start_dir = random.randint(0, 3)
 
+        self.agent_start_dir = random.randint(0, 3)
         self.agent_pos = self.agent_start_pos
         self.agent_dir = self.agent_start_dir
 
-    def _gen_grid(self, width, height):
+    def _gen_grid(self, width=None, height=None):
         # Create an empty grid
         self.grid = Grid(self.size, self.size)
+
+        self.blocks = []
 
         # Generate the surrounding walls
         self.grid.wall_rect(0, 0, self.size, self.size)
 
-        # Place a goal square in a random position
-        self.place_goal()
-
-        # Place the agent
-        if self.agent_start_pos is not None:
-            self.agent_pos = self.agent_start_pos
-            self.agent_dir = self.agent_start_dir
+        # Place blocks if bit_map is provided
+        if self.bit_map is not None:
+            for x in range(self.bit_map.shape[0]):
+                for y in range(self.bit_map.shape[1]):
+                    if self.bit_map[y, x]:
+                        self.blocks.append((x+1, y+1))
+                        # Add an offset of 1 for the outer walls
+                        self.grid.set(x+1, y+1, Wall())
         else:
-            self.place_agent()
+            # Generate N random blocks
+            for _ in range(self.num_tiles):
+                # Ensure that the block doesn't overlap with the agent or goal
+                agent_start_pos = np.array([self.agent_start_pos]).flatten()
+                goal_pos = np.array([self.goal_pos]).flatten()
+                while True:
+                    x, y = self._rand_pos()
+                    if (x, y) != tuple(agent_start_pos) and (x, y) != tuple(goal_pos):
+                        break
+                self.blocks.append((x, y))
+                self.grid.set(x, y, Wall())
 
-        # Generate N random blocks
-        self.blocks = []
-        for _ in range(self.num_tiles):
-            # Ensure that the block doesn't overlap with the agent or goal
-            while True:
-                x, y = self._rand_pos()
-                if ((x, y) != self.agent_start_pos) and ((x, y) != self.goal_pos) and ((x, y) not in self.blocks):
-                    break
-            self.blocks.append((x, y))
-            self.grid.set(x, y, Wall())
+        # Place agent and goal
+        self.place_agent()
+        self.place_goal()
 
         self.mission = "grand mission"
 
@@ -110,13 +133,17 @@ class Env(MiniGridEnv):
         super().reset(seed=seed)
 
         # Reinitialize episode-specific variables
-        self.agent_pos = None
-        self.agent_dir = None
-        self.agent_start_pos = None
-        self.agent_start_dir = None
+        if self.level is None:
+            self.agent_pos = None
+            self.agent_dir = None
+            self.goal_pos = None
+            self.agent_start_dir = None
+            self.agent_start_pos = None
+        else:
+            self.bit_map, self.agent_start_pos, self.goal_pos = get_minigrid_level(self.level)
 
         # Generate a new random grid at the start of each episode
-        self._gen_grid(self.size, self.size)
+        self._gen_grid()
 
         # These fields should be defined by _gen_grid
         assert (
