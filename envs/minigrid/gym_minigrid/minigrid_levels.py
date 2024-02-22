@@ -103,7 +103,9 @@ def get_minigrid_level(level_name):
 
     if level_name == "SmallCorridor":
         start_pos = np.array([1, 7])
-        goal_pos = np.array([6,3])
+        row = np.random.choice([6,8])
+        col = np.random.choice([3,5,7,9,11])
+        goal_pos = np.array([col,row])
         bit_map = np.array([
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
@@ -123,7 +125,9 @@ def get_minigrid_level(level_name):
 
     if level_name == "LargeCorridor":
         start_pos = np.array([1, 10])
-        goal_pos = np.array([9,3])
+        row = np.random.choice([9, 11])
+        col = np.random.choice([3,5,7,9,11,13,15,17])
+        goal_pos = np.array([col,row])
         bit_map = np.array([
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
