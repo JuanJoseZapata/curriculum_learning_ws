@@ -36,7 +36,7 @@ def parse_args():
                         help='the learning rate of the optimizer')
     parser.add_argument('--seed', type=int, default=1,
                         help='seed of the experiment')
-    parser.add_argument('--total-timesteps', type=int, default=500000,
+    parser.add_argument('--total-timesteps', type=int, default=2_000_000,
                         help='total timesteps of the experiments')
     parser.add_argument('--torch-deterministic', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
                         help='if toggled, `torch.backends.cudnn.deterministic=False`')
@@ -54,7 +54,7 @@ def parse_args():
     # Algorithm specific arguments
     parser.add_argument('--n-minibatch', type=int, default=4,
                         help='the number of mini batch')
-    parser.add_argument('--num-envs', type=int, default=4,
+    parser.add_argument('--num-envs', type=int, default=8,
                         help='the number of parallel game environment')
     parser.add_argument('--num-steps', type=int, default=128,
                         help='the number of steps per game environment')
@@ -211,7 +211,6 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     torch.backends.cudnn.deterministic = args.torch_deterministic
 
-    args.num_envs = 32
     args.num_workers = 8
 
     envs = VecPyTorch(DummyVecEnv([make_env for i in range(args.num_envs)]), device)
@@ -277,9 +276,10 @@ if __name__ == "__main__":
 
             for info in infos:
                 if 'episode' in info.keys():
-                    print(f"global_step={global_step}, episode_reward={info['episode']['r']}")
-                    writer.add_scalar("charts/episode_reward", info['episode']['r'], global_step)
-                    break
+                    if info['episode']['t'] or info['episode']['truncated']:
+                        print(f"[{update}/{num_updates}] global_step={global_step}, episode_reward={info['episode']['r']}")
+                        writer.add_scalar("charts/episode_reward", info['episode']['r'], global_step)
+                        break
 
         # bootstrap reward if not done. reached the batch limit
         with torch.no_grad():
