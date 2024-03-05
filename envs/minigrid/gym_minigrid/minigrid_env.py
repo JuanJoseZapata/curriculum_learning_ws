@@ -11,6 +11,41 @@ from minigrid.minigrid_env import MiniGridEnv
 from .minigrid_levels import get_minigrid_level
 import random
 import numpy as np
+import torch
+
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def get_grid(z):
+    """Get grid from a 2D numpy array with (x,y) coordinates"""
+
+    points = np.copy(z)
+    points = np.clip(points, 0, 12)  # 15x15 grid - 2 for outer walls
+
+    grid = np.zeros((13, 13), dtype=int)
+
+    # Place blocks (except for the last two points, which are the player and goal)
+    for i in range(points.shape[0] - 2):
+        grid[points[i, 0], points[i, 1]] = 1
+
+    occupied_cells = list(np.argwhere(grid == 1))
+    occupied_cells = [tuple(cell) for cell in occupied_cells]
+
+    player_pos = points[-2]
+    goal_pos = points[-1]
+
+    if tuple(player_pos) in occupied_cells:
+        # Delete player position from occupied cells
+        grid[player_pos[0], player_pos[1]] = 0
+    
+    if tuple(goal_pos) in occupied_cells:
+        # Delete goal position from occupied cells
+        grid[goal_pos[0], goal_pos[1]] = 0
+
+    player_pos = np.array([player_pos[1], player_pos[0]])
+    goal_pos = np.array([goal_pos[1], goal_pos[0]])
+
+    return grid, player_pos, goal_pos
 
 
 class Env(MiniGridEnv):
@@ -20,6 +55,7 @@ class Env(MiniGridEnv):
         max_steps: int | None = None,
         num_tiles: int = 25,
         level: str | None = None,
+        vae=None,
         agent_start_pos: list | None = None,
         agent_start_dir: int | None = None,
         goal_pos: list | None = None,
@@ -35,6 +71,8 @@ class Env(MiniGridEnv):
         self.bit_map = bit_map
         self.size = size
         self.blocks = []
+        self.difficulty = None
+        self.vae = vae
 
         if self.level is not None:
             self.bit_map, self.agent_start_pos, self.goal_pos = get_minigrid_level(self.level)
@@ -83,7 +121,7 @@ class Env(MiniGridEnv):
                 self.agent_start_pos = self._rand_pos()
                 if (self.agent_start_pos != self.goal_pos).all():
                     break
-
+        
         self.agent_start_dir = random.randint(0, 3)
         self.agent_pos = self.agent_start_pos
         self.agent_dir = self.agent_start_dir
@@ -124,6 +162,9 @@ class Env(MiniGridEnv):
 
         self.mission = "grand mission"
 
+    def set_difficulty(self, difficulties, weights):
+        self.difficulty = np.random.choice(difficulties, p=weights)
+
     def reset(
         self,
         *,
@@ -131,6 +172,9 @@ class Env(MiniGridEnv):
         options: dict[str, Any] | None = None,
     ) -> tuple[ObsType, dict[str, Any]]:
         super().reset(seed=seed)
+
+        if self.difficulty is None:
+            self.difficulty = np.random.choice([d for d in range(2,25)])
 
         # Reinitialize episode-specific variables
         if self.level is None:
@@ -141,6 +185,20 @@ class Env(MiniGridEnv):
             self.agent_start_pos = None
         else:
             self.bit_map, self.agent_start_pos, self.goal_pos = get_minigrid_level(self.level)
+
+        # Generate grid from VAE
+        if self.vae is not None:
+            latent_dim = 24
+            z = np.random.uniform(-2, 2, (1, latent_dim))
+            z = np.append(z, self.difficulty)
+            z = torch.tensor(z).to(device).ravel().float()
+            # Reconstruct image using VAE
+            recon_x = self.vae.decoder(z).to('cpu').detach().numpy().squeeze().reshape(-1,2).astype(np.int32)
+
+            self.bit_map, self.agent_start_pos, self.goal_pos = get_grid(recon_x)
+            # Add 1 to account for the outer walls
+            self.agent_start_pos += 1
+            self.goal_pos += 1
 
         # Generate a new random grid at the start of each episode
         self._gen_grid()
@@ -239,7 +297,7 @@ class Env(MiniGridEnv):
 
         obs = self.gen_obs()
 
-        info = {'episode': {'r': reward, 'l': self.step_count, 't': terminated, 'truncated': truncated}}
+        info = {'episode': {'r': reward, 'l': self.step_count, 't': terminated, 'truncated': truncated, 'd': self.difficulty}}
 
         return obs, reward, terminated, truncated, info
 
