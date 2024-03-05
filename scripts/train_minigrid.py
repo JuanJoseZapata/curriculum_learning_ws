@@ -26,6 +26,7 @@ import random
 import os
 from collections import deque
 import scipy.stats as stats
+import json
 
 
 def parse_args():
@@ -45,14 +46,16 @@ def parse_args():
                         help='if toggled, `torch.backends.cudnn.deterministic=False`')
     parser.add_argument('--cuda', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
                         help='if toggled, cuda will not be enabled by default')
-    parser.add_argument('--prod-mode', type=lambda x:bool(strtobool(x)), default=False, nargs='?', const=True,
-                        help='run the script in production mode and use wandb to log outputs')
+    parser.add_argument("--track", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
+        help="if toggled, this experiment will be tracked with Weights and Biases")
     parser.add_argument('--capture-video', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
                         help='weather to capture videos of the agent performances (check out `videos` folder)')
-    parser.add_argument('--wandb-project-name', type=str, default="cleanRL",
+    parser.add_argument('--wandb-project-name', type=str, default="minigrid",
                         help="the wandb's project name")
     parser.add_argument('--wandb-entity', type=str, default=None,
                         help="the entity (team) of wandb's project")
+    parser.add_argument("--env-id", type=str, default="minigrid",
+                        help="the id of the environment")
 
     # Algorithm specific arguments
     parser.add_argument('--num-minibatches', type=int, default=1,
@@ -240,13 +243,21 @@ vae_model.load_state_dict(torch.load(vae_path))
 
 if __name__ == "__main__":
 
+    from datetime import datetime
+
     args = parse_args()
+    print(args)
+    run_name = f"{args.env_id}__{args.seed}__{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+    # Save json file with hyperparameters
+    with open(f"log/args/{run_name}.json", "w") as outfile:
+        json.dump(vars(args), outfile)
 
     args.render = False
     render_mode = "human" if args.render else None
 
     def make_env():
-        env = minigrid_env.Env(size=15, agent_view_size=7, num_tiles=25, render_mode=render_mode, vae=vae_model)
+        env = minigrid_env.Env(size=15, agent_view_size=7, num_tiles=25, max_steps=250, render_mode=render_mode, vae=vae_model)
         env = RGBImgPartialObsWrapper(env)
         env.action_space.seed(args.seed)
         env.observation_space.seed(args.seed)
@@ -261,10 +272,16 @@ if __name__ == "__main__":
     writer = SummaryWriter(f"runs/{experiment_name}")
     writer.add_text('hyperparameters', "|param|value|\n|-|-|\n%s" % (
             '\n'.join([f"|{key}|{value}|" for key, value in vars(args).items()])))
-    # if args.prod_mode:
-    #     import wandb
-    #     wandb.init(project=args.wandb_project_name, entity=args.wandb_entity, sync_tensorboard=True, config=vars(args), name=experiment_name, monitor_gym=True, save_code=True)
-    #     writer = SummaryWriter(f"/tmp/{experiment_name}")
+    if args.track:
+        import wandb
+        wandb.init(project=args.wandb_project_name,
+                   entity=args.wandb_entity,
+                   sync_tensorboard=True,
+                   config=vars(args),
+                   name=experiment_name,
+                   monitor_gym=True,
+                   save_code=True)
+        writer = SummaryWriter(f"/tmp/{experiment_name}")
 
     # TRY NOT TO MODIFY: seeding
     device = torch.device('cuda' if torch.cuda.is_available() and args.cuda else 'cpu')
@@ -351,6 +368,8 @@ if __name__ == "__main__":
                     if info['episode']['t'] or info['episode']['truncated']:
                         print(f"[{iteration}/{args.num_iterations}] global_step={global_step}, episode_reward={info['episode']['r']}, running_reward={np.mean(running_reward):.4f}, difficulty={info['episode']['d']}")
                         writer.add_scalar("charts/episode_reward", info['episode']['r'], global_step)
+                        writer.add_scalar("charts/episode_length", info['episode']['l'], global_step)
+                        writer.add_scalar("charts/difficulty", info['episode']['d'], global_step)
 
                         running_reward.append(info['episode']['r'])
 
@@ -483,4 +502,4 @@ if __name__ == "__main__":
 
     envs.close()
     writer.close()
-    torch.save(agent.state_dict(), f"log/ppo/minigrid_{args.exp_name}_{global_step}.pt")
+    torch.save(agent.state_dict(), f"log/ppo/{run_name}_{global_step}.pt")
