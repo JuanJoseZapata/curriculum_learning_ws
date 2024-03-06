@@ -187,7 +187,7 @@ class Env(MiniGridEnv):
             self.bit_map, self.agent_start_pos, self.goal_pos = get_minigrid_level(self.level)
 
         # Generate grid from VAE
-        if self.vae is not None:
+        if self.vae is not None and self.level is None:
             latent_dim = 24
             z = np.random.uniform(-2, 2, (1, latent_dim))
             z = np.append(z, self.difficulty)

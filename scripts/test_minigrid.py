@@ -103,29 +103,11 @@ def one_hot(a, size):
     return b
 
 
-class RGBImgPartialObsWrapper(ObservationWrapper):
+class PartialObsWrapper(ObservationWrapper):
     """
     Wrapper to use partially observable RGB image as observation.
     This can be used to have the agent to solve the gridworld in pixel space.
-
-    Example:
-        >>> import gymnasium as gym
-        >>> import matplotlib.pyplot as plt
-        >>> from minigrid.wrappers import RGBImgObsWrapper, RGBImgPartialObsWrapper
-        >>> env = gym.make("MiniGrid-LavaCrossingS11N5-v0")
-        >>> obs, _ = env.reset()
-        >>> plt.imshow(obs["image"])  # doctest: +SKIP
-        ![NoWrapper](../figures/lavacrossing_NoWrapper.png)
-        >>> env_obs = RGBImgObsWrapper(env)
-        >>> obs, _ = env_obs.reset()
-        >>> plt.imshow(obs["image"])  # doctest: +SKIP
-        ![RGBImgObsWrapper](../figures/lavacrossing_RGBImgObsWrapper.png)
-        >>> env_obs = RGBImgPartialObsWrapper(env)
-        >>> obs, _ = env_obs.reset()
-        >>> plt.imshow(obs["image"])  # doctest: +SKIP
-        ![RGBImgPartialObsWrapper](../figures/lavacrossing_RGBImgPartialObsWrapper.png)
     """
-
     def __init__(self, env, tile_size=1):
         super().__init__(env)
 
@@ -141,9 +123,7 @@ class RGBImgPartialObsWrapper(ObservationWrapper):
         )
 
     def observation(self, obs):
-        rgb_img_partial = self.unwrapped.get_frame(tile_size=self.tile_size, agent_pov=True)
-
-        return rgb_img_partial
+        return obs["image"]
 
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
@@ -157,10 +137,10 @@ class Agent(nn.Module):
         self.network = nn.Sequential(
             layer_init(nn.Conv2d(3, 16, 3, stride=1)),
             nn.ReLU(),
-            layer_init(nn.Conv2d(16, 32, 2, stride=1)),
+            layer_init(nn.Conv2d(16, 32, 3, stride=1)),
             nn.ReLU(),
             nn.Flatten(),
-            layer_init(nn.Linear(128, 512)),
+            layer_init(nn.Linear(288, 512)),
             nn.ReLU(),
         )
         self.lstm = nn.LSTM(512, 256)
@@ -173,7 +153,7 @@ class Agent(nn.Module):
         self.critic = layer_init(nn.Linear(256, 1), std=1)
 
     def get_states(self, x, lstm_state, done):
-        hidden = self.network(x.permute((0, 3, 1, 2)) / 255.0)
+        hidden = self.network(x.permute((0, 3, 1, 2)) / 8.)
 
         # LSTM logic
         batch_size = lstm_state[0].shape[1]
@@ -217,11 +197,11 @@ vae_model = VAE(input_dim, hidden_dim, latent_dim).to(device)
 vae_model.load_state_dict(torch.load(vae_path))
 
 def make_env():
-        env = minigrid_env.Env(size=15, agent_view_size=5,
-                               num_tiles=40, level="Maze",
-                               vae=None,
+        env = minigrid_env.Env(size=15, agent_view_size=7,
+                               num_tiles=40, level=None,
+                               vae=vae_model,
                                render_mode=render_mode)
-        env = RGBImgPartialObsWrapper(env)
+        env = PartialObsWrapper(env)
         env.action_space.seed(args.seed)
         env.observation_space.seed(args.seed)
         return env
@@ -230,7 +210,7 @@ def set_difficulty(env, difficulty, weights):
     env.set_difficulty(difficulty, weights)
 
 
-render = True
+render = False
 render_mode = "human" if render else None
 
 min_difficulty = 2
@@ -249,7 +229,7 @@ if __name__ == "__main__":
     agent = Agent(env).to(device)
 
     # Load trained agent
-    agent.load_state_dict(torch.load('log/ppo/minigrid_15M_curriculum.pt'))
+    agent.load_state_dict(torch.load('log/ppo/minigrid__1__20240306_100228_14999552.pt'))
 
     # Test agent
     num_episodes = 100
@@ -274,14 +254,15 @@ if __name__ == "__main__":
         rewards.append(reward)
 
         # Make sure the difficulty is within the bounds
-        difficulty = max(min_difficulty, min(max_difficulty, difficulty))
+        difficulty = max(min_difficulty+1, min(max_difficulty, difficulty))
+        difficulties = np.arange(min_difficulty, difficulty, 1)
 
         # Calculate weights for the difficulty
-        weights = stats.norm.pdf(difficulties, difficulty, 2.5)
-        weights += (1 - weights.sum())/weights.shape[0]  # Make sum to 1
+        weights = stats.expon.pdf(difficulties, scale=2)[::-1]  # Exponential distribution
+        weights /= weights.sum()  # Make sum to 1
 
         # Set the difficulty
-        set_difficulty(envs, difficulties, weights)
+        set_difficulty(env, difficulties, weights)
 
     print(f'Average reward: {np.mean(rewards):.4f} +- {np.std(rewards):.4f}')
     
