@@ -31,9 +31,12 @@ import torch.optim as optim
 from torch.distributions.normal import Normal
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
+torch.multiprocessing.set_start_method('spawn', force=True)
 
 from gym_multi_car_racing import multi_car_racing, multi_car_racing_bezier
 from vector.vector_constructors import concat_vec_envs
+from collections import deque
+import scipy.stats as stats
 
 
 def parse_args():
@@ -194,6 +197,19 @@ class NormalizedEnv(gym.core.Wrapper):
         return self._obfilt(obs), infos
 
 
+from VAE.CarRacing.VAE import VAE
+
+input_dim = 12 * 2 + 1
+hidden_dim = 128
+latent_dim = 8
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# Load VAE model
+vae_model = VAE(input_dim, hidden_dim, latent_dim).to(device) # GPU
+vae_model.load_state_dict(torch.load(f"scripts/VAE/CarRacing/models/vae_points_h={hidden_dim}_z={latent_dim}.pt"))
+vae_model.eval()
+
+
 def make_env():
 
     # env setup
@@ -283,7 +299,7 @@ if __name__ == "__main__":
     with open(f"log/args/{run_name}.json", "w") as outfile:
         json.dump(vars(args), outfile)
 
-    if args.track:
+    if False:#args.track:
         import wandb
 
         wandb.init(
@@ -301,6 +317,26 @@ if __name__ == "__main__":
         "|param|value|\n|-|-|\n%s"
         % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
     )
+
+    def map_envs_to_pipes(idx_starts, num_envs):
+        num_pipes = len(idx_starts) - 1
+        envs_per_pipe = int(np.ceil(num_envs / num_pipes))
+
+        envs_pipes = np.ones((num_pipes, envs_per_pipe))*(-1)
+
+        for i in range(envs_pipes.shape[0]):
+            envs_pipes[i, :] = np.arange(idx_starts[i], idx_starts[i+1])
+        
+        return envs_pipes
+
+    def get_env_position(env_num, envs_pipes):
+        return [e[0] for e in np.where(envs_pipes == env_num)]
+
+    def set_control_points(envs, env_num, control_points):
+        envs_pipes = map_envs_to_pipes(envs.idx_starts, envs.num_envs)
+        pipe, pos = get_env_position(env_num, envs_pipes)
+        envs.pipes[pipe].send(("set_control_points", (pos, control_points)))
+        envs.pipes[pipe].recv()
 
     # TRY NOT TO MODIFY: seeding
     random.seed(args.seed)
@@ -331,11 +367,6 @@ if __name__ == "__main__":
 
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-8, weight_decay=args.weight_decay)
 
-    if args.curriculum:
-        # Load VAE for track generation
-        vae = VAE(z_dim=24).to(device) # GPU
-        vae.load_state_dict(torch.load("scripts/track_generation/vae_64x64_24.pt"))
-
     # ALGO Logic: Storage setup
     obs = torch.zeros(
         (args.num_steps, args.num_envs) + envs.single_observation_space.shape
@@ -349,6 +380,14 @@ if __name__ == "__main__":
     truncations = torch.zeros((args.num_steps, args.num_envs)).to(device)
     values = torch.zeros((args.num_steps, args.num_envs)).to(device)
 
+    running_reward = deque([0 for _ in range(50)], maxlen=50)
+    min_difficulty = 0
+    max_difficulty = 11
+    difficulties = np.arange(min_difficulty, max_difficulty, 1)
+    difficulty = min_difficulty + 1  # Initial difficulty
+    # Uniform weights
+    weights = np.ones(difficulties.shape[0]) / difficulties.shape[0]
+
     # TRY NOT TO MODIFY: start the game
     global_step = 0
     start_time = time.time()
@@ -358,28 +397,8 @@ if __name__ == "__main__":
     next_truncation = torch.zeros(args.num_envs).to(device)
     num_updates = args.total_timesteps // args.batch_size
     prev_info = {}
-    track_vectors = []
-    reward_history = []
-    temp_rewards = []
 
     for update in range(1, num_updates + 1):
-
-        # Generate new track if all environments have finished an episode on the current track
-        # or if it is the first update
-        if (len(temp_rewards) >= args.num_envs or update == 1) and (args.curriculum):
-            # Use VAE to generate a new track
-            vector = torch.randn(1, 24).to(device)
-            track = generate_track(vae, vector)
-            track_vectors.append(vector)
-            for i, vec_env in enumerate(envs.vec_envs):
-                envs.vec_envs[i].par_env.unwrapped.loaded_track = track
-            next_obs, info = envs.reset(seed=args.seed)
-            next_obs = torch.Tensor(next_obs).to(device)
-            # Calculate mean reward for the previous track
-            if len(temp_rewards) >= args.num_envs:
-                print(f"Track: {len(track_vectors) - 1}, mean reward {np.mean(temp_rewards)}")
-                reward_history.append(np.mean(temp_rewards))
-                temp_rewards = []
 
         # Annealing the rate if instructed to do so.
         if args.anneal_lr:
@@ -416,7 +435,7 @@ if __name__ == "__main__":
                 player_idx = idx % 2 if args.num_agents == 2 else 0
                 if next_termination[idx]:
                     print(
-                        f"global_step={global_step}, {player_idx}-episodic_return={prev_info[idx]['episode']['r']}, {player_idx}-episodic_length={prev_info[idx]['episode']['l']}"
+                        f"global_step={global_step}, {player_idx}-episodic_return={prev_info[idx]['episode']['r']}, {player_idx}-episodic_length={prev_info[idx]['episode']['l']}, difficulty={difficulty}"
                     )
                     writer.add_scalar(
                         f"charts/episodic_return-player{player_idx}",
@@ -428,8 +447,39 @@ if __name__ == "__main__":
                         prev_info[idx]["episode"]["l"],
                         global_step,
                     )
-                    if args.curriculum:
-                        temp_rewards.append(prev_info[idx]["episode"]["r"])
+
+                    running_reward.append(prev_info[idx]['episode']['r'])
+
+                    if vae_model is not None:
+                        # Increase difficulty if the running reward is greater than 0.7
+                        if np.mean(running_reward) > 600:
+                            difficulty += 1
+                        # Decrease difficulty if the running reward is less than 0.4
+                        elif np.mean(running_reward) < 300:
+                            difficulty -= 1
+
+                        # Make sure the difficulty is within the bounds
+                        difficulty = max(min_difficulty+1, min(max_difficulty, difficulty))
+                        difficulties = np.arange(min_difficulty, difficulty, 1)
+
+                        # Calculate weights for the difficulty
+                        # weights = np.ones(d-2)  # Uniform distribution
+                        weights = stats.expon.pdf(difficulties, scale=2)[::-1]  # Exponential distribution
+                        weights /= weights.sum()  # Make sum to 1
+
+                        difficulty = np.random.choice(difficulties, p=weights)
+
+                        print(f"Generating control points from VAE, difficulty: {difficulty}")
+                        latent_dim = 8
+                        z = np.random.uniform(-2, 2, size=(1, latent_dim))
+                        z = np.append(z, difficulty)
+                        z = torch.tensor(z).to(device).ravel().float()
+                        # Reconstruct image using VAE
+                        control_points = vae_model.decoder(z).to('cpu').detach().numpy().squeeze().reshape(12,2) * 30  # Rescale
+
+                        # Set new control points
+                        set_control_points(envs, idx, control_points)
+
             prev_info = info
 
         # bootstrap value if not done
