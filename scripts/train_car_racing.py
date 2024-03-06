@@ -435,7 +435,7 @@ if __name__ == "__main__":
                 player_idx = idx % 2 if args.num_agents == 2 else 0
                 if next_termination[idx]:
                     print(
-                        f"global_step={global_step}, {player_idx}-episodic_return={prev_info[idx]['episode']['r']}, {player_idx}-episodic_length={prev_info[idx]['episode']['l']}, difficulty={difficulty}"
+                        f"global_step={global_step}, {player_idx}-episodic_return={prev_info[idx]['episode']['r']}, {player_idx}-episodic_length={prev_info[idx]['episode']['l']}, difficulty={d}"
                     )
                     writer.add_scalar(
                         f"charts/episodic_return-player{player_idx}",
@@ -467,12 +467,11 @@ if __name__ == "__main__":
                         weights = stats.expon.pdf(difficulties, scale=2)[::-1]  # Exponential distribution
                         weights /= weights.sum()  # Make sum to 1
 
-                        difficulty = np.random.choice(difficulties, p=weights)
+                        d = np.random.choice(difficulties, p=weights)
 
-                        print(f"Generating control points from VAE, difficulty: {difficulty}")
                         latent_dim = 8
                         z = np.random.uniform(-2, 2, size=(1, latent_dim))
-                        z = np.append(z, difficulty)
+                        z = np.append(z, d)
                         z = torch.tensor(z).to(device).ravel().float()
                         # Reconstruct image using VAE
                         control_points = vae_model.decoder(z).to('cpu').detach().numpy().squeeze().reshape(12,2) * 30  # Rescale
