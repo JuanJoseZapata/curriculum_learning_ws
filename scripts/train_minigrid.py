@@ -106,29 +106,11 @@ def one_hot(a, size):
     b[a] = 1
     return b
 
-class RGBImgPartialObsWrapper(ObservationWrapper):
+class PartialObsWrapper(ObservationWrapper):
     """
     Wrapper to use partially observable RGB image as observation.
     This can be used to have the agent to solve the gridworld in pixel space.
-
-    Example:
-        >>> import gymnasium as gym
-        >>> import matplotlib.pyplot as plt
-        >>> from minigrid.wrappers import RGBImgObsWrapper, RGBImgPartialObsWrapper
-        >>> env = gym.make("MiniGrid-LavaCrossingS11N5-v0")
-        >>> obs, _ = env.reset()
-        >>> plt.imshow(obs["image"])  # doctest: +SKIP
-        ![NoWrapper](../figures/lavacrossing_NoWrapper.png)
-        >>> env_obs = RGBImgObsWrapper(env)
-        >>> obs, _ = env_obs.reset()
-        >>> plt.imshow(obs["image"])  # doctest: +SKIP
-        ![RGBImgObsWrapper](../figures/lavacrossing_RGBImgObsWrapper.png)
-        >>> env_obs = RGBImgPartialObsWrapper(env)
-        >>> obs, _ = env_obs.reset()
-        >>> plt.imshow(obs["image"])  # doctest: +SKIP
-        ![RGBImgPartialObsWrapper](../figures/lavacrossing_RGBImgPartialObsWrapper.png)
     """
-
     def __init__(self, env, tile_size=1):
         super().__init__(env)
 
@@ -144,9 +126,7 @@ class RGBImgPartialObsWrapper(ObservationWrapper):
         )
 
     def observation(self, obs):
-        rgb_img_partial = self.unwrapped.get_frame(tile_size=self.tile_size, agent_pov=True)
-
-        return rgb_img_partial
+        return obs["image"]
 
 class VecPyTorch(VecEnvWrapper):
     def __init__(self, venv, device):
@@ -197,7 +177,7 @@ class Agent(nn.Module):
         self.critic = layer_init(nn.Linear(256, 1), std=1)
 
     def get_states(self, x, lstm_state, done):
-        hidden = self.network(x.permute((0, 3, 1, 2)) / 255.0)
+        hidden = self.network(x.permute((0, 3, 1, 2)) / 8.)
 
         # LSTM logic
         batch_size = lstm_state[0].shape[1]
@@ -239,6 +219,7 @@ hidden_dim = 128
 latent_dim = 24
 vae_model = VAE(input_dim, hidden_dim, latent_dim).to(device)
 vae_model.load_state_dict(torch.load(vae_path))
+vae_model.eval()
 
 
 if __name__ == "__main__":
@@ -258,7 +239,7 @@ if __name__ == "__main__":
 
     def make_env():
         env = minigrid_env.Env(size=15, agent_view_size=7, num_tiles=25, max_steps=250, render_mode=render_mode, vae=vae_model)
-        env = RGBImgPartialObsWrapper(env)
+        env = PartialObsWrapper(env)
         env.action_space.seed(args.seed)
         env.observation_space.seed(args.seed)
         return env
@@ -319,6 +300,8 @@ if __name__ == "__main__":
     max_difficulty = 25
     difficulties = np.arange(min_difficulty, max_difficulty, 1)
     difficulty = min_difficulty  # Initial difficulty
+    # Uniform weights
+    weights = np.ones(difficulties.shape[0]) / difficulties.shape[0]
 
     # TRY NOT TO MODIFY: start the game
     global_step = 0
