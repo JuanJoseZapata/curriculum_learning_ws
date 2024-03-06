@@ -299,7 +299,7 @@ if __name__ == "__main__":
     min_difficulty = 2
     max_difficulty = 25
     difficulties = np.arange(min_difficulty, max_difficulty, 1)
-    difficulty = min_difficulty  # Initial difficulty
+    difficulty = min_difficulty + 1  # Initial difficulty
     # Uniform weights
     weights = np.ones(difficulties.shape[0]) / difficulties.shape[0]
 
@@ -357,18 +357,19 @@ if __name__ == "__main__":
                         running_reward.append(info['episode']['r'])
 
                         # Increase difficulty if the running reward is greater than 0.7
-                        if np.mean(running_reward) > 0.7:
+                        if np.mean(running_reward) > 0.85:
                             difficulty += 1
                         # Decrease difficulty if the running reward is less than 0.4
-                        elif np.mean(running_reward) < 0.4:
+                        elif np.mean(running_reward) < 0.5:
                             difficulty -= 1
 
                         # Make sure the difficulty is within the bounds
-                        difficulty = max(min_difficulty, min(max_difficulty, difficulty))
+                        difficulty = max(min_difficulty+1, min(max_difficulty, difficulty))
+                        difficulties = np.arange(min_difficulty, difficulty, 1)
 
                         # Calculate weights for the difficulty
-                        weights = stats.norm.pdf(difficulties, difficulty, 2.5)
-                        weights += (1 - weights.sum())/weights.shape[0]  # Make sum to 1
+                        weights = stats.expon.pdf(difficulties, scale=2)[::-1]  # Exponential distribution
+                        weights /= weights.sum()  # Make sum to 1
 
                         # Set the difficulty
                         set_difficulty(envs, difficulties, weights)
