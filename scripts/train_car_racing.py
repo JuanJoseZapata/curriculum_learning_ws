@@ -382,6 +382,7 @@ if __name__ == "__main__":
     max_difficulty = 11
     difficulties = np.arange(min_difficulty, max_difficulty, 1)
     difficulty = min_difficulty + 1  # Initial difficulty
+    d = difficulty
     # Uniform weights
     weights = np.ones(difficulties.shape[0]) / difficulties.shape[0]
 
