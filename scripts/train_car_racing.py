@@ -200,8 +200,8 @@ class NormalizedEnv(gym.core.Wrapper):
 from VAE.CarRacing.VAE import VAE
 
 input_dim = 12 * 2 + 1
-hidden_dim = 128
-latent_dim = 8
+hidden_dim = 256
+latent_dim = 10
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Load VAE model
@@ -469,7 +469,6 @@ if __name__ == "__main__":
 
                         d = np.random.choice(difficulties, p=weights)
 
-                        latent_dim = 8
                         z = np.random.uniform(-2, 2, size=(1, latent_dim))
                         z = np.append(z, d)
                         z = torch.tensor(z).to(device).ravel().float()
