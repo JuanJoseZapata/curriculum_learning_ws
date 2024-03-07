@@ -299,7 +299,7 @@ if __name__ == "__main__":
     with open(f"log/args/{run_name}.json", "w") as outfile:
         json.dump(vars(args), outfile)
 
-    if False:#args.track:
+    if args.track:
         import wandb
 
         wandb.init(
