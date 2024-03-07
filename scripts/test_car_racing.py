@@ -18,6 +18,8 @@ from torch.utils.tensorboard import SummaryWriter
 from gym_multi_car_racing import multi_car_racing, multi_car_racing_f1, multi_car_racing_bezier
 from vector.vector_constructors import concat_vec_envs
 
+import scipy.stats as stats
+
 
 def parse_args():
     # fmt: off
@@ -26,7 +28,7 @@ def parse_args():
     # Algorithm specific arguments
     parser.add_argument("--env-id", type=str, default="multi_car_racing",
         help="the id of the environment")
-    parser.add_argument("--seed", type=int, default=1,
+    parser.add_argument("--seed", type=int, default=123,
         help="seed of the experiment")
     parser.add_argument("--torch-deterministic", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="if toggled, `torch.backends.cudnn.deterministic=False`")
@@ -48,21 +50,41 @@ def parse_args():
         help="the number of parallel game environments")
     parser.add_argument("--discrete-actions", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="Whether to use a discrete action space")
+    parser.add_argument("--render", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
+        help="Whether to render the environment")
     args = parser.parse_args()
     # fmt: on
     return args
 
 
+from VAE.CarRacing.VAE import VAE
+
+input_dim = 12 * 2 + 1
+hidden_dim = 256
+latent_dim = 10
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# Load VAE model
+vae_model = VAE(input_dim, hidden_dim, latent_dim).to(device) # GPU
+vae_model.load_state_dict(torch.load(f"scripts/VAE/CarRacing/models/vae_points_h={hidden_dim}_z={latent_dim}.pt"))
+vae_model.eval()
+
+
 def make_env():
+
+    render_mode = "human" if args.render else "state_pixels"
 
     # env setup
     if args.track_name is None:
-        env = multi_car_racing_bezier.parallel_env(n_agents=args.num_agents, use_random_direction=True,
-                                render_mode="state_pixels", discrete_action_space=args.discrete_actions, verbose=1)
+        # env = multi_car_racing_bezier.parallel_env(n_agents=args.num_agents, use_random_direction=False,
+        #                         render_mode=render_mode, discrete_action_space=args.discrete_actions, verbose=1)
+        env = multi_car_racing_bezier.parallel_env(n_agents=args.num_agents, render_mode=render_mode,
+                                                   use_random_direction=False,
+                                                   discrete_action_space=args.discrete_actions, verbose=1)
     else:
         print("Track:", args.track_name)
         env = multi_car_racing_f1.parallel_env(n_agents=args.num_agents, use_random_direction=False,
-                                render_mode="state_pixels", discrete_action_space=args.discrete_actions,
+                                render_mode=render_mode, discrete_action_space=args.discrete_actions,
                                 track=args.track_name, verbose=1)
     
     if not args.discrete_actions:
@@ -71,6 +93,9 @@ def make_env():
         env = ss.frame_skip_v0(env, args.frame_skip)
     if args.frame_stack > 1:
         env = ss.frame_stack_v1(env, args.frame_stack)
+    if args.clip_rewards:
+        env.render_mode = None
+        env = ss.clip_reward_v0(env, lower_bound=-3, upper_bound=3)
     env = ss.pettingzoo_env_to_vec_env_v1(env)
 
     return env
@@ -124,9 +149,23 @@ class Agent(nn.Module):
                 action = probs.sample()
             return action, probs.log_prob(action).sum(1), probs.entropy().sum(1), self.critic(hidden)
 
+
+def set_control_points(envs, control_points):
+    envs.unwrapped.vec_envs[0].par_env.unwrapped.set_control_points(control_points)
+
+
 if __name__ == "__main__":
 
     args = parse_args()
+
+    args.model_path = "log/ppo/multi_car_racing_5M_CL.pt"
+    args.num_agents = 1
+    args.track_name = "Belgium"
+    args.render = False
+    args.clip_rewards = False
+    args.num_episodes = 5
+    difficulty = 10
+
     print(args)
 
     # TRY NOT TO MODIFY: seeding
@@ -152,6 +191,13 @@ if __name__ == "__main__":
     agent = Agent(envs).to(device)
     agent.load_state_dict(torch.load(args.model_path))
 
+    min_difficulty = 0
+    max_difficulty = 11
+    difficulties = np.arange(min_difficulty, max_difficulty, 1)
+    difficulty += 1
+    # Uniform weights
+    weights = np.ones(difficulties.shape[0]) / difficulties.shape[0]
+
     # Run
     returns = []
     lengths = []
@@ -165,11 +211,34 @@ if __name__ == "__main__":
             action, _, _, _ = agent.get_action_and_value(next_obs)
             next_obs, reward, done, truncation, info = envs.step(action.cpu().numpy())
             next_obs = torch.Tensor(next_obs).to(device)
-            episode_return += reward
+            #print(f"Reward: {reward}")
+            episode_return += reward.ravel()
             episode_length += 1
         print(f"Episode {episode}: return={episode_return}, length={episode_length}\n")
         returns.append(episode_return)
         lengths.append(episode_length)
+
+        if vae_model is not None and args.track_name is None:
+            # Make sure the difficulty is within the bounds
+            difficulty = max(min_difficulty+1, min(max_difficulty, difficulty))
+            difficulties = np.arange(min_difficulty, difficulty, 1)
+
+            # Calculate weights for the difficulty
+            # weights = np.ones(d-2)  # Uniform distribution
+            weights = stats.expon.pdf(difficulties, scale=2)[::-1]  # Exponential distribution
+            weights /= weights.sum()  # Make sum to 1
+
+            d = np.random.choice(difficulties, p=weights)
+            print("d:", d)
+
+            z = np.random.uniform(-2, 2, size=(1, latent_dim))
+            z = np.append(z, d)
+            z = torch.tensor(z).to(device).ravel().float()
+            # Reconstruct image using VAE
+            control_points = vae_model.decoder(z).to('cpu').detach().numpy().squeeze().reshape(12,2) * 30  # Rescale
+
+            # Set new control points
+            set_control_points(envs, control_points)
     
     if args.track_name is not None:
         print(f"Track: {args.track_name}")
