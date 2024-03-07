@@ -102,7 +102,7 @@ def parse_args():
         help="whether to clip rewards or not")
     parser.add_argument("--norm-rew", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="whether to normalize rewards or not")
-    parser.add_argument("--ent-coef", type=float, default=0.01,
+    parser.add_argument("--ent-coef", type=float, default=0.0,
         help="coefficient of the entropy")
     parser.add_argument("--vf-coef", type=float, default=0.5,
         help="coefficient of the value function")
@@ -380,7 +380,7 @@ if __name__ == "__main__":
     truncations = torch.zeros((args.num_steps, args.num_envs)).to(device)
     values = torch.zeros((args.num_steps, args.num_envs)).to(device)
 
-    running_reward = deque([0 for _ in range(50)], maxlen=50)
+    running_reward = deque([0 for _ in range(10)], maxlen=10)
     min_difficulty = 0
     max_difficulty = 11
     difficulties = np.arange(min_difficulty, max_difficulty, 1)
