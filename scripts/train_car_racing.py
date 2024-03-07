@@ -354,9 +354,6 @@ if __name__ == "__main__":
     envs.single_observation_space = envs.observation_space
     envs.single_action_space = envs.action_space
     envs.is_vector_env = True
-    envs.single_observation_space = envs.observation_space
-    envs.single_action_space = envs.action_space
-    envs.is_vector_env = True
     if args.capture_video:
         envs = gym.wrappers.RecordVideo(envs, f"videos/{run_name}")
 
