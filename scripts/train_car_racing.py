@@ -110,7 +110,7 @@ def parse_args():
         help="the maximum norm for the gradient clipping")
     parser.add_argument("--target-kl", type=float, default=None,
         help="the target KL divergence threshold")
-    parser.add_argument("--weight-decay", type=float, default=0,
+    parser.add_argument("--weight-decay", type=float, default=1e-4,
         help="Adam optimizer weight decay")
     parser.add_argument("--discrete-actions", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="Whether to use a discrete action space")
@@ -377,14 +377,20 @@ if __name__ == "__main__":
     truncations = torch.zeros((args.num_steps, args.num_envs)).to(device)
     values = torch.zeros((args.num_steps, args.num_envs)).to(device)
 
-    running_reward = deque([0 for _ in range(10)], maxlen=10)
-    min_difficulty = 0
+    N = 64
+    running_reward = deque([0 for _ in range(N)], maxlen=N)
+    min_difficulty = 9
     max_difficulty = 11
     difficulties = np.arange(min_difficulty, max_difficulty, 1)
     difficulty = min_difficulty + 1  # Initial difficulty
     d = difficulty
     # Uniform weights
     weights = np.ones(difficulties.shape[0]) / difficulties.shape[0]
+
+    # Load dataset with control points and difficulties
+    X = np.load("scripts/VAE/CarRacing/X_30k_new.npy")
+    Y = np.load("scripts/VAE/CarRacing/complexities_30k_new.npy")
+    Y = Y/np.max(Y)*10
 
     # TRY NOT TO MODIFY: start the game
     global_step = 0
@@ -432,12 +438,24 @@ if __name__ == "__main__":
             for idx in range(args.num_envs):
                 player_idx = idx % 2 if args.num_agents == 2 else 0
                 if next_termination[idx]:
+                    running_reward.append(prev_info[idx]['episode']['r'])
+                    
                     print(
-                        f"global_step={global_step}, {player_idx}-episodic_return={prev_info[idx]['episode']['r']}, {player_idx}-episodic_length={prev_info[idx]['episode']['l']}, difficulty={d}"
+                        f"global_step={global_step}, {player_idx}-episodic_return={prev_info[idx]['episode']['r']}, {player_idx}-episodic_length={prev_info[idx]['episode']['l']}, difficulty={d}, avg_return({N})={np.mean(running_reward)}"
                     )
                     writer.add_scalar(
                         f"charts/episodic_return-player{player_idx}",
                         prev_info[idx]["episode"]["r"],
+                        global_step,
+                    )
+                    writer.add_scalar(
+                        f"charts/average_episodic_return-player{player_idx}",
+                        np.mean(running_reward),
+                        global_step,
+                    )
+                    writer.add_scalar(
+                        f"charts/std_episodic_return-player{player_idx}",
+                        np.std(running_reward),
                         global_step,
                     )
                     writer.add_scalar(
@@ -446,13 +464,11 @@ if __name__ == "__main__":
                         global_step,
                     )
 
-                    running_reward.append(prev_info[idx]['episode']['r'])
-
                     if vae_model is not None:
-                        # Increase difficulty if the running reward is greater than 0.7
-                        if np.mean(running_reward) > 600:
+                        # Increase difficulty if the running reward is greater than 600
+                        if np.mean(running_reward) > 500:
                             difficulty += 1
-                        # Decrease difficulty if the running reward is less than 0.4
+                        # Decrease difficulty if the running reward is less than 300
                         elif np.mean(running_reward) < 300:
                             difficulty -= 1
 
@@ -461,17 +477,22 @@ if __name__ == "__main__":
                         difficulties = np.arange(min_difficulty, difficulty, 1)
 
                         # Calculate weights for the difficulty
-                        # weights = np.ones(d-2)  # Uniform distribution
+                        #weights = np.ones(difficulties.shape[0])  # Uniform distribution
                         weights = stats.expon.pdf(difficulties, scale=2)[::-1]  # Exponential distribution
                         weights /= weights.sum()  # Make sum to 1
 
                         d = np.random.choice(difficulties, p=weights)
 
-                        z = np.random.uniform(-2, 2, size=(1, latent_dim))
-                        z = np.append(z, d)
-                        z = torch.tensor(z).to(device).ravel().float()
-                        # Reconstruct image using VAE
-                        control_points = vae_model.decoder(z).to('cpu').detach().numpy().squeeze().reshape(12,2) * 30  # Rescale
+                        # With VAE
+                        # z = np.random.uniform(-2, 2, size=(1, latent_dim))
+                        # z = np.append(z, d)
+                        # z = torch.tensor(z).to(device).ravel().float()
+                        # # Reconstruct image using VAE
+                        # control_points = vae_model.decoder(z).to('cpu').detach().numpy().squeeze().reshape(12,2) * 30  # Rescale
+
+                        # Without VAE (use dataset)
+                        idxs = np.where(np.abs(Y-d) < 1)[0]
+                        control_points = X[np.random.choice(idxs)]
 
                         # Set new control points
                         set_control_points(envs, idx, control_points)
