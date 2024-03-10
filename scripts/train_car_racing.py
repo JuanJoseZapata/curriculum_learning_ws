@@ -379,13 +379,15 @@ if __name__ == "__main__":
 
     N = 64
     running_reward = deque([0 for _ in range(N)], maxlen=N)
-    min_difficulty = 9
+    min_difficulty = 0
     max_difficulty = 11
     difficulties = np.arange(min_difficulty, max_difficulty, 1)
     difficulty = min_difficulty + 1  # Initial difficulty
     d = difficulty
     # Uniform weights
     weights = np.ones(difficulties.shape[0]) / difficulties.shape[0]
+    # Add a cooldown variable to avoid changing the difficulty too often
+    cooldown = 0
 
     # Load dataset with control points and difficulties
     X = np.load("scripts/VAE/CarRacing/X_30k_new.npy")
@@ -466,11 +468,16 @@ if __name__ == "__main__":
 
                     if vae_model is not None:
                         # Increase difficulty if the running reward is greater than 600
-                        if np.mean(running_reward) > 500:
+                        if np.mean(running_reward) > 500 and cooldown == 0:
                             difficulty += 1
+                            cooldown = N
                         # Decrease difficulty if the running reward is less than 300
-                        elif np.mean(running_reward) < 300:
+                        elif np.mean(running_reward) < 300 and cooldown == 0:
                             difficulty -= 1
+                            cooldown = N
+                        
+                        # Decrease cooldown
+                        cooldown = max(0, cooldown-1)
 
                         # Make sure the difficulty is within the bounds
                         difficulty = max(min_difficulty+1, min(max_difficulty, difficulty))
@@ -478,7 +485,7 @@ if __name__ == "__main__":
 
                         # Calculate weights for the difficulty
                         #weights = np.ones(difficulties.shape[0])  # Uniform distribution
-                        weights = stats.expon.pdf(difficulties, scale=2)[::-1]  # Exponential distribution
+                        weights = stats.expon.pdf(difficulties, scale=5)[::-1]  # Exponential distribution
                         weights /= weights.sum()  # Make sum to 1
 
                         d = np.random.choice(difficulties, p=weights)
