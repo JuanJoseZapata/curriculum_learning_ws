@@ -52,6 +52,8 @@ def parse_args():
         help="Whether to use a discrete action space")
     parser.add_argument("--render", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="Whether to render the environment")
+    parser.add_argument("--bezier", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
+        help="Whether to use bezier curves for the track")
     args = parser.parse_args()
     # fmt: on
     return args
@@ -68,6 +70,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 vae_model = VAE(input_dim, hidden_dim, latent_dim).to(device) # GPU
 vae_model.load_state_dict(torch.load(f"scripts/VAE/CarRacing/models/vae_points_h={hidden_dim}_z={latent_dim}.pt"))
 vae_model.eval()
+vae_model = None
 
 
 def make_env():
@@ -75,14 +78,17 @@ def make_env():
     render_mode = "human" if args.render else "state_pixels"
 
     # env setup
-    if args.track_name is None:
-        # env = multi_car_racing_bezier.parallel_env(n_agents=args.num_agents, use_random_direction=False,
-        #                         render_mode=render_mode, discrete_action_space=args.discrete_actions, verbose=1)
+    if args.track_name is None and args.bezier:
+        print("Bezier tracks")
         env = multi_car_racing_bezier.parallel_env(n_agents=args.num_agents, render_mode=render_mode,
                                                    use_random_direction=False,
                                                    discrete_action_space=args.discrete_actions, verbose=1)
+    elif args.track_name is None and not args.bezier:
+        print("Default tracks")
+        env = multi_car_racing.parallel_env(n_agents=args.num_agents, use_random_direction=True, use_ego_color=True,
+                                            discrete_action_space=args.discrete_actions, render_mode=render_mode)
     else:
-        print("Track:", args.track_name)
+        print("F1 track:", args.track_name)
         env = multi_car_racing_f1.parallel_env(n_agents=args.num_agents, use_random_direction=False,
                                 render_mode=render_mode, discrete_action_space=args.discrete_actions,
                                 track=args.track_name, verbose=1)
@@ -93,9 +99,6 @@ def make_env():
         env = ss.frame_skip_v0(env, args.frame_skip)
     if args.frame_stack > 1:
         env = ss.frame_stack_v1(env, args.frame_stack)
-    if args.clip_rewards:
-        env.render_mode = None
-        env = ss.clip_reward_v0(env, lower_bound=-3, upper_bound=3)
     env = ss.pettingzoo_env_to_vec_env_v1(env)
 
     return env
@@ -158,13 +161,13 @@ if __name__ == "__main__":
 
     args = parse_args()
 
-    args.model_path = "log/ppo/multi_car_racing_5M_CL.pt"
+    args.model_path = "log/ppo/multi_car_racing__1__20240310_163933_2400000.pt"
     args.num_agents = 1
-    args.track_name = "Belgium"
+    args.track_name = "Austria"
     args.render = False
-    args.clip_rewards = False
-    args.num_episodes = 5
-    difficulty = 10
+    args.num_episodes = 10
+    difficulty = 0
+    args.bezier = True
 
     print(args)
 
@@ -229,7 +232,6 @@ if __name__ == "__main__":
             weights /= weights.sum()  # Make sum to 1
 
             d = np.random.choice(difficulties, p=weights)
-            print("d:", d)
 
             z = np.random.uniform(-2, 2, size=(1, latent_dim))
             z = np.append(z, d)
