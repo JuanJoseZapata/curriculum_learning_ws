@@ -102,7 +102,7 @@ def parse_args():
         help="whether to clip rewards or not")
     parser.add_argument("--norm-rew", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="whether to normalize rewards or not")
-    parser.add_argument("--ent-coef", type=float, default=0.0,
+    parser.add_argument("--ent-coef", type=float, default=0.01,
         help="coefficient of the entropy")
     parser.add_argument("--vf-coef", type=float, default=0.5,
         help="coefficient of the value function")
@@ -208,6 +208,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 vae_model = VAE(input_dim, hidden_dim, latent_dim).to(device) # GPU
 vae_model.load_state_dict(torch.load(f"scripts/VAE/CarRacing/models/vae_points_h={hidden_dim}_z={latent_dim}.pt"))
 vae_model.eval()
+vae_model = None
 
 
 def make_env():
@@ -461,6 +462,11 @@ if __name__ == "__main__":
                         global_step,
                     )
                     writer.add_scalar(
+                        f"charts/difficulty-player{player_idx}",
+                        difficulty,
+                        global_step,
+                    )
+                    writer.add_scalar(
                         f"charts/episodic_length-player{player_idx}",
                         prev_info[idx]["episode"]["l"],
                         global_step,
@@ -470,11 +476,11 @@ if __name__ == "__main__":
                         # Increase difficulty if the running reward is greater than 600
                         if np.mean(running_reward) > 500 and cooldown == 0:
                             difficulty += 1
-                            cooldown = N
+                            cooldown = 2*N
                         # Decrease difficulty if the running reward is less than 300
                         elif np.mean(running_reward) < 300 and cooldown == 0:
                             difficulty -= 1
-                            cooldown = N
+                            cooldown = 2*N
                         
                         # Decrease cooldown
                         cooldown = max(0, cooldown-1)
@@ -484,8 +490,8 @@ if __name__ == "__main__":
                         difficulties = np.arange(min_difficulty, difficulty, 1)
 
                         # Calculate weights for the difficulty
-                        #weights = np.ones(difficulties.shape[0])  # Uniform distribution
-                        weights = stats.expon.pdf(difficulties, scale=5)[::-1]  # Exponential distribution
+                        weights = np.ones(difficulties.shape[0])  # Uniform distribution
+                        #weights = stats.expon.pdf(difficulties, scale=4)[::-1]  # Exponential distribution
                         weights /= weights.sum()  # Make sum to 1
 
                         d = np.random.choice(difficulties, p=weights)
