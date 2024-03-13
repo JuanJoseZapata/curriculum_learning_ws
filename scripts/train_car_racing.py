@@ -70,9 +70,9 @@ def parse_args():
         help="the learning rate of the optimizer")
     parser.add_argument("--num-agents", type=int, default=1,
         help="number of agents in the environment")
-    parser.add_argument("--penalties", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
+    parser.add_argument("--penalties", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="whether to add additional penalties to the environment")
-    parser.add_argument("--penalty-weight", type=float, default=0.1,
+    parser.add_argument("--penalty-weight", type=float, default=0.05,
         help="weight of the penalties")
     parser.add_argument("--frame-stack", type=int, default=4,
         help="number of stacked frames")
@@ -96,7 +96,7 @@ def parse_args():
         help="Toggles advantages normalization")
     parser.add_argument("--clip-coef", type=float, default=0.2,
         help="the surrogate clipping coefficient")
-    parser.add_argument("--clip-vloss", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
+    parser.add_argument("--clip-vloss", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="Toggles whether or not to use a clipped loss for the value function, as per the paper.")
     parser.add_argument("--clip-rewards", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="whether to clip rewards or not")
@@ -208,7 +208,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 vae_model = VAE(input_dim, hidden_dim, latent_dim).to(device) # GPU
 vae_model.load_state_dict(torch.load(f"scripts/VAE/CarRacing/models/vae_points_h={hidden_dim}_z={latent_dim}.pt"))
 vae_model.eval()
-vae_model = None
+#vae_model = None
 
 
 def make_env():
