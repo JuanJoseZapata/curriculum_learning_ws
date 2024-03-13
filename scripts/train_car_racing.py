@@ -102,7 +102,7 @@ def parse_args():
         help="whether to clip rewards or not")
     parser.add_argument("--norm-rew", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="whether to normalize rewards or not")
-    parser.add_argument("--ent-coef", type=float, default=0.0,
+    parser.add_argument("--ent-coef", type=float, default=0.01,
         help="coefficient of the entropy")
     parser.add_argument("--vf-coef", type=float, default=0.5,
         help="coefficient of the value function")
@@ -208,6 +208,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 vae_model = VAE(input_dim, hidden_dim, latent_dim).to(device) # GPU
 vae_model.load_state_dict(torch.load(f"scripts/VAE/CarRacing/models/vae_points_h={hidden_dim}_z={latent_dim}.pt"))
 vae_model.eval()
+vae_model = None
 
 
 def make_env():
@@ -379,13 +380,15 @@ if __name__ == "__main__":
 
     N = 64
     running_reward = deque([0 for _ in range(N)], maxlen=N)
-    min_difficulty = 9
+    min_difficulty = 0
     max_difficulty = 11
     difficulties = np.arange(min_difficulty, max_difficulty, 1)
     difficulty = min_difficulty + 1  # Initial difficulty
     d = difficulty
     # Uniform weights
     weights = np.ones(difficulties.shape[0]) / difficulties.shape[0]
+    # Add a cooldown variable to avoid changing the difficulty too often
+    cooldown = 0
 
     # Load dataset with control points and difficulties
     X = np.load("scripts/VAE/CarRacing/X_30k_new.npy")
@@ -459,6 +462,11 @@ if __name__ == "__main__":
                         global_step,
                     )
                     writer.add_scalar(
+                        f"charts/difficulty-player{player_idx}",
+                        difficulty,
+                        global_step,
+                    )
+                    writer.add_scalar(
                         f"charts/episodic_length-player{player_idx}",
                         prev_info[idx]["episode"]["l"],
                         global_step,
@@ -466,19 +474,24 @@ if __name__ == "__main__":
 
                     if vae_model is not None:
                         # Increase difficulty if the running reward is greater than 600
-                        if np.mean(running_reward) > 500:
+                        if np.mean(running_reward) > 500 and cooldown == 0:
                             difficulty += 1
+                            cooldown = 2*N
                         # Decrease difficulty if the running reward is less than 300
-                        elif np.mean(running_reward) < 300:
+                        elif np.mean(running_reward) < 300 and cooldown == 0:
                             difficulty -= 1
+                            cooldown = 2*N
+                        
+                        # Decrease cooldown
+                        cooldown = max(0, cooldown-1)
 
                         # Make sure the difficulty is within the bounds
                         difficulty = max(min_difficulty+1, min(max_difficulty, difficulty))
                         difficulties = np.arange(min_difficulty, difficulty, 1)
 
                         # Calculate weights for the difficulty
-                        #weights = np.ones(difficulties.shape[0])  # Uniform distribution
-                        weights = stats.expon.pdf(difficulties, scale=2)[::-1]  # Exponential distribution
+                        weights = np.ones(difficulties.shape[0])  # Uniform distribution
+                        #weights = stats.expon.pdf(difficulties, scale=4)[::-1]  # Exponential distribution
                         weights /= weights.sum()  # Make sum to 1
 
                         d = np.random.choice(difficulties, p=weights)
