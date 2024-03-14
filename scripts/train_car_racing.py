@@ -208,7 +208,6 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 vae_model = VAE(input_dim, hidden_dim, latent_dim).to(device) # GPU
 vae_model.load_state_dict(torch.load(f"scripts/VAE/CarRacing/models/vae_points_h={hidden_dim}_z={latent_dim}.pt"))
 vae_model.eval()
-#vae_model = None
 
 
 def make_env():
@@ -472,7 +471,7 @@ if __name__ == "__main__":
                         global_step,
                     )
 
-                    if vae_model is not None:
+                    if args.curriculum:
                         # Increase difficulty if the running reward is greater than 600
                         if np.mean(running_reward) > 550 and cooldown == 0:
                             difficulty += 1
@@ -509,6 +508,9 @@ if __name__ == "__main__":
 
                         # Set new control points
                         set_control_points(envs, idx, control_points)
+
+                    else:
+                        set_control_points(envs, idx, None)
 
             prev_info = info
 
