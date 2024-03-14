@@ -44,7 +44,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp-name", type=str, default=os.path.basename(__file__).rstrip(".py"),
         help="the name of this experiment")
-    parser.add_argument("--seed", type=int, default=1,
+    parser.add_argument("--seed", type=int, default=3,
         help="seed of the experiment")
     parser.add_argument("--num-workers", type=int, default=16,
         help="Number of parallel workers for collecting rollouts")
@@ -64,7 +64,7 @@ def parse_args():
     # Algorithm specific arguments
     parser.add_argument("--env-id", type=str, default="multi_car_racing",
         help="the id of the environment")
-    parser.add_argument("--total-timesteps", type=int, default=5_000_000,
+    parser.add_argument("--total-timesteps", type=int, default=1_050_000,
         help="total timesteps of the experiments")
     parser.add_argument("--learning-rate", type=float, default=1e-4,
         help="the learning rate of the optimizer")
@@ -118,7 +118,7 @@ def parse_args():
         help="file name of an already trained agent that will be further trained")
     parser.add_argument("--bezier", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="Whether to use bezier curves for the track")
-    parser.add_argument("--curriculum", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
+    parser.add_argument("--curriculum", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="Whether to use curriculum learning")
     args = parser.parse_args()
     args.batch_size = int(args.num_envs * args.num_steps)
@@ -293,7 +293,8 @@ if __name__ == "__main__":
 
     args = parse_args()
     print(args)
-    run_name = f"{args.env_id}__{args.seed}__{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    method = "CL" if args.curriculum else "DR"
+    run_name = f"{args.env_id}__{args.seed}__{datetime.now().strftime('%Y%m%d')}_{method}"
 
     # Save json file with hyperparameters
     with open(f"log/args/{run_name}.json", "w") as outfile:
