@@ -66,7 +66,7 @@ def parse_args():
         help="the id of the environment")
     parser.add_argument("--total-timesteps", type=int, default=5_000_000,
         help="total timesteps of the experiments")
-    parser.add_argument("--learning-rate", type=float, default=3e-4,
+    parser.add_argument("--learning-rate", type=float, default=1e-4,
         help="the learning rate of the optimizer")
     parser.add_argument("--num-agents", type=int, default=1,
         help="number of agents in the environment")
@@ -378,7 +378,7 @@ if __name__ == "__main__":
     truncations = torch.zeros((args.num_steps, args.num_envs)).to(device)
     values = torch.zeros((args.num_steps, args.num_envs)).to(device)
 
-    N = 64
+    N = 100
     running_reward = deque([0 for _ in range(N)], maxlen=N)
     min_difficulty = 0
     max_difficulty = 11
@@ -474,7 +474,7 @@ if __name__ == "__main__":
 
                     if vae_model is not None:
                         # Increase difficulty if the running reward is greater than 600
-                        if np.mean(running_reward) > 500 and cooldown == 0:
+                        if np.mean(running_reward) > 550 and cooldown == 0:
                             difficulty += 1
                             cooldown = 2*N
                         # Decrease difficulty if the running reward is less than 300
