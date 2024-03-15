@@ -44,7 +44,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp-name", type=str, default=os.path.basename(__file__).rstrip(".py"),
         help="the name of this experiment")
-    parser.add_argument("--seed", type=int, default=1,
+    parser.add_argument("--seed", type=int, default=3,
         help="seed of the experiment")
     parser.add_argument("--num-workers", type=int, default=16,
         help="Number of parallel workers for collecting rollouts")
@@ -64,9 +64,9 @@ def parse_args():
     # Algorithm specific arguments
     parser.add_argument("--env-id", type=str, default="multi_car_racing",
         help="the id of the environment")
-    parser.add_argument("--total-timesteps", type=int, default=5_000_000,
+    parser.add_argument("--total-timesteps", type=int, default=1_050_000,
         help="total timesteps of the experiments")
-    parser.add_argument("--learning-rate", type=float, default=3e-4,
+    parser.add_argument("--learning-rate", type=float, default=1e-4,
         help="the learning rate of the optimizer")
     parser.add_argument("--num-agents", type=int, default=1,
         help="number of agents in the environment")
@@ -118,7 +118,7 @@ def parse_args():
         help="file name of an already trained agent that will be further trained")
     parser.add_argument("--bezier", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="Whether to use bezier curves for the track")
-    parser.add_argument("--curriculum", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
+    parser.add_argument("--curriculum", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="Whether to use curriculum learning")
     args = parser.parse_args()
     args.batch_size = int(args.num_envs * args.num_steps)
@@ -208,7 +208,6 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 vae_model = VAE(input_dim, hidden_dim, latent_dim).to(device) # GPU
 vae_model.load_state_dict(torch.load(f"scripts/VAE/CarRacing/models/vae_points_h={hidden_dim}_z={latent_dim}.pt"))
 vae_model.eval()
-#vae_model = None
 
 
 def make_env():
@@ -294,7 +293,8 @@ if __name__ == "__main__":
 
     args = parse_args()
     print(args)
-    run_name = f"{args.env_id}__{args.seed}__{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    method = "CL" if args.curriculum else "DR"
+    run_name = f"{args.env_id}__{args.seed}__{datetime.now().strftime('%Y%m%d')}_{method}"
 
     # Save json file with hyperparameters
     with open(f"log/args/{run_name}.json", "w") as outfile:
@@ -378,7 +378,7 @@ if __name__ == "__main__":
     truncations = torch.zeros((args.num_steps, args.num_envs)).to(device)
     values = torch.zeros((args.num_steps, args.num_envs)).to(device)
 
-    N = 64
+    N = 100
     running_reward = deque([0 for _ in range(N)], maxlen=N)
     min_difficulty = 0
     max_difficulty = 11
@@ -472,9 +472,9 @@ if __name__ == "__main__":
                         global_step,
                     )
 
-                    if vae_model is not None:
+                    if args.curriculum:
                         # Increase difficulty if the running reward is greater than 600
-                        if np.mean(running_reward) > 500 and cooldown == 0:
+                        if np.mean(running_reward) > 550 and cooldown == 0:
                             difficulty += 1
                             cooldown = 2*N
                         # Decrease difficulty if the running reward is less than 300
@@ -509,6 +509,9 @@ if __name__ == "__main__":
 
                         # Set new control points
                         set_control_points(envs, idx, control_points)
+
+                    else:
+                        set_control_points(envs, idx, None)
 
             prev_info = info
 
