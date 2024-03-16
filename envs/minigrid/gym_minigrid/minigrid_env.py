@@ -51,7 +51,7 @@ def get_grid(z):
 class Env(MiniGridEnv):
     def __init__(
         self,
-        size=10,
+        size=15,
         max_steps: int | None = None,
         num_tiles: int = 25,
         level: str | None = None,
@@ -60,6 +60,7 @@ class Env(MiniGridEnv):
         agent_start_dir: int | None = None,
         goal_pos: list | None = None,
         bit_map: np.ndarray | None = None,
+        training: bool = True,
         **kwargs,
     ):
         self.level = level
@@ -73,6 +74,7 @@ class Env(MiniGridEnv):
         self.blocks = []
         self.difficulty = None
         self.vae = vae
+        self.training = training
 
         if self.level is not None:
             self.bit_map, self.agent_start_pos, self.goal_pos = get_minigrid_level(self.level)
@@ -156,6 +158,12 @@ class Env(MiniGridEnv):
                 self.blocks.append((x, y))
                 self.grid.set(x, y, Wall())
 
+            # Create bit map
+            self.bit_map = np.zeros((self.size, self.size), dtype=int)
+            for x, y in self.blocks:
+                self.bit_map[y, x] = 1
+            self.bit_map = self.bit_map[1:-1, 1:-1]
+
         # Place agent and goal
         self.place_agent()
         self.place_goal()
@@ -177,13 +185,14 @@ class Env(MiniGridEnv):
             self.difficulty = np.random.choice([d for d in range(2,25)])
 
         # Reinitialize episode-specific variables
-        if self.level is None:
+        if self.level is None and not self.training:
             self.agent_pos = None
             self.agent_dir = None
             self.goal_pos = None
             self.agent_start_dir = None
             self.agent_start_pos = None
-        else:
+            self.bit_map = None
+        elif self.level is not None:
             self.bit_map, self.agent_start_pos, self.goal_pos = get_minigrid_level(self.level)
 
         # Generate grid from VAE
@@ -303,7 +312,7 @@ class Env(MiniGridEnv):
 
 
 def main():
-    env = Env(render_mode="human")
+    env = Env(render_mode="human", num_tiles=40, max_steps=50, training=True)
 
     # enable manual control for testing
     manual_control = ManualControl(env, seed=42)
