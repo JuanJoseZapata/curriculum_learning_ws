@@ -60,7 +60,7 @@ def parse_args():
     # Algorithm specific arguments
     parser.add_argument('--num-minibatches', type=int, default=1,
                         help='the number of mini batch')
-    parser.add_argument('--num-envs', type=int, default=16,
+    parser.add_argument('--num-envs', type=int, default=32,
                         help='the number of parallel game environment')
     parser.add_argument('--num-steps', type=int, default=128,
                         help='the number of steps per game environment')
@@ -68,7 +68,7 @@ def parse_args():
                         help='the discount factor gamma')
     parser.add_argument('--gae-lambda', type=float, default=0.95,
                         help='the lambda for the general advantage estimation')
-    parser.add_argument('--ent-coef', type=float, default=0.01,
+    parser.add_argument('--ent-coef', type=float, default=0.0,
                         help="coefficient of the entropy")
     parser.add_argument('--vf-coef', type=float, default=0.5,
                         help="coefficient of the value function")
@@ -88,10 +88,12 @@ def parse_args():
                          help='Use GAE for advantage computation')
     parser.add_argument('--norm-adv', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
                           help="Toggles advantages normalization")
-    parser.add_argument('--anneal-lr', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
+    parser.add_argument('--anneal-lr', type=lambda x:bool(strtobool(x)), default=False, nargs='?', const=True,
                           help="Toggle learning rate annealing for policy and value networks")
     parser.add_argument('--clip-vloss', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
                           help='Toggles wheter or not to use a clipped loss for the value function, as per the paper.')
+    parser.add_argument("--curriculum", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
+        help="Whether to use curriculum learning")
 
     args = parser.parse_args()
     args.batch_size = int(args.num_envs * args.num_steps)
@@ -209,26 +211,30 @@ class Agent(nn.Module):
         return action, probs.log_prob(action), probs.entropy(), self.critic(hidden), lstm_state
 
 
-from VAE.MiniGrid.VAE import VAE
-
-vae_path = 'scripts/VAE/MiniGrid/models/VAE_MiniGrid_latent-dim-24_25-blocks.pt'
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-input_dim = (25 + 2)*2 + 1  # (25 blocks + 1 player position + 1 goal position) + 1 complexity
-hidden_dim = 128
-latent_dim = 24
-vae_model = VAE(input_dim, hidden_dim, latent_dim).to(device)
-vae_model.load_state_dict(torch.load(vae_path))
-vae_model.eval()
-
-
 if __name__ == "__main__":
 
     from datetime import datetime
 
     args = parse_args()
     print(args)
-    run_name = f"{args.env_id}__{args.seed}__{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+    if args.curriculum:
+        from VAE.MiniGrid.VAE import VAE
+
+        vae_path = 'scripts/VAE/MiniGrid/models/VAE_MiniGrid_latent-dim-24_25-blocks.pt'
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        input_dim = (25 + 2)*2 + 1  # (25 blocks + 1 player position + 1 goal position) + 1 complexity
+        hidden_dim = 128
+        latent_dim = 24
+        vae_model = VAE(input_dim, hidden_dim, latent_dim).to(device)
+        vae_model.load_state_dict(torch.load(vae_path))
+        vae_model.eval()
+    else:
+        vae_model = None
+
+    method = "CL" if args.curriculum else "DR"
+    run_name = f"{args.env_id}__{args.seed}__{datetime.now().strftime('%Y%m%d')}_{method}"
 
     # Save json file with hyperparameters
     with open(f"log/args/{run_name}.json", "w") as outfile:
@@ -238,7 +244,9 @@ if __name__ == "__main__":
     render_mode = "human" if args.render else None
 
     def make_env():
-        env = minigrid_env.Env(size=15, agent_view_size=7, num_tiles=25, max_steps=250, render_mode=render_mode, vae=vae_model)
+        env = minigrid_env.Env(size=15, agent_view_size=7, num_tiles=25,
+                               max_steps=250, render_mode=render_mode, vae=vae_model,
+                               training=True)
         env = PartialObsWrapper(env)
         env.action_space.seed(args.seed)
         env.observation_space.seed(args.seed)
@@ -249,20 +257,20 @@ if __name__ == "__main__":
             envs.unwrapped.envs[i].env.set_difficulty(difficulty, weights)
 
     # TRY NOT TO MODIFY: setup the environment
-    experiment_name = f"{args.gym_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
-    writer = SummaryWriter(f"runs/{experiment_name}")
+    writer = SummaryWriter(f"runs/{run_name}")
     writer.add_text('hyperparameters', "|param|value|\n|-|-|\n%s" % (
             '\n'.join([f"|{key}|{value}|" for key, value in vars(args).items()])))
+
     if args.track:
         import wandb
         wandb.init(project=args.wandb_project_name,
                    entity=args.wandb_entity,
                    sync_tensorboard=True,
                    config=vars(args),
-                   name=experiment_name,
+                   name=run_name,
                    monitor_gym=True,
                    save_code=True)
-        writer = SummaryWriter(f"/tmp/{experiment_name}")
+        writer = SummaryWriter(f"/tmp/{run_name}")
 
     # TRY NOT TO MODIFY: seeding
     device = torch.device('cuda' if torch.cuda.is_available() and args.cuda else 'cpu')
@@ -271,7 +279,6 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     torch.backends.cudnn.deterministic = args.torch_deterministic
 
-    args.num_workers = 8
     args.num_iterations = args.total_timesteps // args.batch_size
 
     envs = VecPyTorch(DummyVecEnv([make_env for i in range(args.num_envs)]), device)
@@ -295,13 +302,25 @@ if __name__ == "__main__":
     dones = torch.zeros((args.num_steps, args.num_envs)).to(device)
     values = torch.zeros((args.num_steps, args.num_envs)).to(device)
 
-    running_reward = deque([0 for _ in range(50)], maxlen=50)
-    min_difficulty = 2
-    max_difficulty = 25
+    N = 500
+    running_reward = deque([0 for _ in range(N)], maxlen=N)
+    min_difficulty = 3
+    max_difficulty = 40
     difficulties = np.arange(min_difficulty, max_difficulty, 1)
     difficulty = min_difficulty + 1  # Initial difficulty
+    d = difficulty
     # Uniform weights
     weights = np.ones(difficulties.shape[0]) / difficulties.shape[0]
+    # Add a cooldown variable to avoid changing the difficulty too often
+    cooldown = 0
+
+    # Load dataset with mazes and path lengths
+    X_maze = np.load("scripts/VAE/MiniGrid/grids_50k_40-blocks.npy")
+    X_pos = np.load("scripts/VAE/MiniGrid/pos_50k_40-blocks.npy")
+    Y = np.load("scripts/VAE/MiniGrid/path_lengths_50k_40-blocks.npy")
+    # Remove outer walls
+    X_maze = X_maze[:, 1:-1, 1:-1, :]
+    X_pos = X_pos - 1
 
     # TRY NOT TO MODIFY: start the game
     global_step = 0
@@ -346,35 +365,61 @@ if __name__ == "__main__":
             #             print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
             #             writer.add_scalar("charts/episodic_return", info["episode"]["r"], global_step)
             #             writer.add_scalar("charts/episodic_length", info["episode"]["l"], global_step)
-            for info in infos:
+            for i, info in enumerate(infos):
                 if 'episode' in info.keys():
                     if info['episode']['t'] or info['episode']['truncated']:
-                        print(f"[{iteration}/{args.num_iterations}] global_step={global_step}, episode_reward={info['episode']['r']}, running_reward={np.mean(running_reward):.4f}, difficulty={info['episode']['d']}")
+                        print(f"[{iteration}/{args.num_iterations}] global_step={global_step}, episode_reward={info['episode']['r']}, running_reward={np.mean(running_reward):.4f}, difficulty={difficulty}")
+                        writer.add_scalar("charts/difficulty", difficulty, global_step)
+                        writer.add_scalar("charts/average_reward", np.mean(running_reward), global_step)
                         writer.add_scalar("charts/episode_reward", info['episode']['r'], global_step)
                         writer.add_scalar("charts/episode_length", info['episode']['l'], global_step)
-                        writer.add_scalar("charts/difficulty", info['episode']['d'], global_step)
 
                         running_reward.append(info['episode']['r'])
 
-                        # Increase difficulty if the running reward is greater than 0.7
-                        if np.mean(running_reward) > 0.85:
-                            difficulty += 1
-                        # Decrease difficulty if the running reward is less than 0.4
-                        elif np.mean(running_reward) < 0.5:
-                            difficulty -= 1
+                        if args.curriculum:
 
-                        # Make sure the difficulty is within the bounds
-                        difficulty = max(min_difficulty+1, min(max_difficulty, difficulty))
-                        difficulties = np.arange(min_difficulty, difficulty, 1)
+                            # Increase difficulty if the running reward is greater than 0.8
+                            if np.mean(running_reward) > 0.85 and cooldown == 0:
+                                difficulty += 1
+                                cooldown = 2*N
+                            # Decrease difficulty if the running reward is less than 0.4
+                            elif np.mean(running_reward) < 0.5 and cooldown == 0:
+                                difficulty -= 1
+                                cooldown = 2*N
 
-                        # Calculate weights for the difficulty
-                        weights = stats.expon.pdf(difficulties, scale=2)[::-1]  # Exponential distribution
-                        weights /= weights.sum()  # Make sum to 1
+                            # Decrease cooldown
+                            cooldown = max(0, cooldown-1)
 
-                        # Set the difficulty
-                        set_difficulty(envs, difficulties, weights)
+                            # Make sure the difficulty is within the bounds
+                            difficulty = max(min_difficulty+1, min(max_difficulty, difficulty))
+                            difficulties = np.arange(min_difficulty, difficulty, 1)
 
-                        break
+                            # Calculate weights for the difficulty
+                            weights = np.ones(difficulties.shape[0])  # Uniform distribution
+                            #weights = stats.expon.pdf(difficulties, scale=5)[::-1]  # Exponential distribution
+                            weights /= weights.sum()  # Make sum to 1
+
+                            d = np.random.choice(difficulties, p=weights)
+
+                            # Without VAE (use dataset)
+                            idxs = np.where(np.abs(Y-d) < 1)[0]
+                            idx = np.random.choice(idxs)
+                            # Get maze and player/goal positions
+                            maze = X_maze[idx].mean(axis=-1)
+                            maze[maze > 0] = 1
+                            maze[X_pos[idx][1], X_pos[idx][0]] = 0
+                            maze[X_pos[idx][3], X_pos[idx][2]] = 0
+                            player_pos = X_pos[idx][:2] + 1  # +1 to account for the removed outer walls
+                            goal_pos = X_pos[idx][2:] + 1  # +1 to account for the removed outer walls
+                            # Set maze and positions
+                            envs.unwrapped.envs[i].env.bit_map = maze
+                            envs.unwrapped.envs[i].env.agent_start_pos = player_pos
+                            envs.unwrapped.envs[i].env.goal_pos = goal_pos
+
+                            # Set the difficulty --> with VAE
+                            # set_difficulty(envs, difficulties, weights)
+
+                            #break
 
         # bootstrap value if not done
         with torch.no_grad():
@@ -483,6 +528,11 @@ if __name__ == "__main__":
         writer.add_scalar("losses/explained_variance", explained_var, global_step)
         print("SPS:", int(global_step / (time.time() - start_time)))
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
+
+        # Save model checkpoint
+        checkpoint_interval = args.num_iterations // 100
+        if iteration % checkpoint_interval == 0:
+            torch.save(agent.state_dict(), f"log/ppo/{run_name}_{global_step}.pt")
 
     envs.close()
     writer.close()
