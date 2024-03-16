@@ -28,6 +28,8 @@ from collections import deque
 import scipy.stats as stats
 import json
 
+from test_minigrid import zero_shot_benchmark
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='PPO agent')
@@ -539,7 +541,19 @@ if __name__ == "__main__":
         # Save model checkpoint
         checkpoint_interval = args.num_iterations // 100
         if iteration % checkpoint_interval == 0:
+            # Save model
             torch.save(agent.state_dict(), f"log/ppo/{run_name}_{global_step}.pt")
+            # Test zero shot performance
+            print("Testing zero shot performance...")
+            rewards_zero_shot = zero_shot_benchmark(args,
+                                                    levels=["Maze", "Maze2", "Labyrinth", "Labyrinth2"],
+                                                    agent_name=f'{run_name}_{global_step}.pt',
+                                                    method=method,
+                                                    num_episodes=5,
+                                                    save_csv=False,
+                                                    verbose=1)
+            for level_name, reward in rewards_zero_shot.items():
+                writer.add_scalar(f"zero_shot/{level_name}", reward, global_step)
 
     envs.close()
     writer.close()

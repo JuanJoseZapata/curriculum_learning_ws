@@ -25,6 +25,7 @@ import time
 import random
 import os
 import scipy.stats as stats
+import pandas as pd
 
 
 def parse_args():
@@ -34,24 +35,14 @@ def parse_args():
                         help='the name of this experiment')
     parser.add_argument('--gym-id', type=str, default="MiniGrid-15x15",
                         help='the id of the gym environment')
-    parser.add_argument('--learning-rate', type=float, default=3e-4,
-                        help='the learning rate of the optimizer')
     parser.add_argument('--seed', type=int, default=1,
                         help='seed of the experiment')
-    parser.add_argument('--total-timesteps', type=int, default=2_000_000,
-                        help='total timesteps of the experiments')
     parser.add_argument('--torch-deterministic', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
                         help='if toggled, `torch.backends.cudnn.deterministic=False`')
     parser.add_argument('--cuda', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
                         help='if toggled, cuda will not be enabled by default')
-    parser.add_argument('--prod-mode', type=lambda x:bool(strtobool(x)), default=False, nargs='?', const=True,
-                        help='run the script in production mode and use wandb to log outputs')
-    parser.add_argument('--capture-video', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
-                        help='weather to capture videos of the agent performances (check out `videos` folder)')
-    parser.add_argument('--wandb-project-name', type=str, default="cleanRL",
-                        help="the wandb's project name")
-    parser.add_argument('--wandb-entity', type=str, default=None,
-                        help="the entity (team) of wandb's project")
+    parser.add_argument("--level-name", type=str, default=None,
+        help="Zero-shot level name")
 
     # Algorithm specific arguments
     parser.add_argument('--num-minibatches', type=int, default=4,
@@ -60,34 +51,6 @@ def parse_args():
                         help='the number of parallel game environment')
     parser.add_argument('--num-steps', type=int, default=128,
                         help='the number of steps per game environment')
-    parser.add_argument('--gamma', type=float, default=0.99,
-                        help='the discount factor gamma')
-    parser.add_argument('--gae-lambda', type=float, default=0.95,
-                        help='the lambda for the general advantage estimation')
-    parser.add_argument('--ent-coef', type=float, default=0.01,
-                        help="coefficient of the entropy")
-    parser.add_argument('--vf-coef', type=float, default=0.5,
-                        help="coefficient of the value function")
-    parser.add_argument('--max-grad-norm', type=float, default=0.5,
-                        help='the maximum norm for the gradient clipping')
-    parser.add_argument('--clip-coef', type=float, default=0.2,
-                        help="the surrogate clipping coefficient")
-    parser.add_argument('--update-epochs', type=int, default=4,
-                         help="the K epochs to update the policy")
-    parser.add_argument('--kle-stop', type=lambda x:bool(strtobool(x)), default=False, nargs='?', const=True,
-                         help='If toggled, the policy updates will be early stopped w.r.t target-kl')
-    parser.add_argument('--kle-rollback', type=lambda x:bool(strtobool(x)), default=False, nargs='?', const=True,
-                         help='If toggled, the policy updates will roll back to previous policy if KL exceeds target-kl')
-    parser.add_argument('--target-kl', type=float, default=0.03,
-                         help='the target-kl variable that is referred by --kl')
-    parser.add_argument('--gae', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
-                         help='Use GAE for advantage computation')
-    parser.add_argument('--norm-adv', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
-                          help="Toggles advantages normalization")
-    parser.add_argument('--anneal-lr', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
-                          help="Toggle learning rate annealing for policy and value networks")
-    parser.add_argument('--clip-vloss', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
-                          help='Toggles wheter or not to use a clipped loss for the value function, as per the paper.')
 
     args = parser.parse_args()
     args.batch_size = int(args.num_envs * args.num_steps)
@@ -190,24 +153,77 @@ from VAE.MiniGrid.VAE import VAE
 vae_path = 'scripts/VAE/MiniGrid/models/VAE_MiniGrid_latent-dim-24_25-blocks.pt'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-input_dim = (25 + 2)*2 + 1  # (25 blocks + 1 player position + 1 goal position) + 1 complexity
-hidden_dim = 128
-latent_dim = 24
-vae_model = VAE(input_dim, hidden_dim, latent_dim).to(device)
-vae_model.load_state_dict(torch.load(vae_path))
+# input_dim = (25 + 2)*2 + 1  # (25 blocks + 1 player position + 1 goal position) + 1 complexity
+# hidden_dim = 128
+# latent_dim = 24
+# vae_model = VAE(input_dim, hidden_dim, latent_dim).to(device)
+# vae_model.load_state_dict(torch.load(vae_path))
+vae_model = None
 
-def make_env():
+def make_env(args):
         env = minigrid_env.Env(size=15, agent_view_size=7,
-                               num_tiles=40, level=None,
+                               num_tiles=40, level=args.level_name,
                                vae=vae_model,
                                render_mode=render_mode)
         env = PartialObsWrapper(env)
         env.action_space.seed(args.seed)
         env.observation_space.seed(args.seed)
+
         return env
 
 def set_difficulty(env, difficulty, weights):
     env.set_difficulty(difficulty, weights)
+
+
+def zero_shot_benchmark(args, levels, agent_name, method, num_episodes=10, save_csv=False, verbose=0):
+
+    rewards_all = {level: np.zeros(num_episodes) for level in levels}
+
+    for level_name in levels:
+        args.level_name = level_name
+        if verbose:
+            print(f'Level: {level_name}')
+
+        # Create environment
+        env = make_env(args)
+        agent = Agent(env).to(device)
+
+        # Load trained agent
+        
+        agent.load_state_dict(torch.load(f'log/ppo/{agent_name}'))  #minigrid__1__20240315_CL_10027008
+
+        # Test agent
+        rewards = []
+
+        for i in range(num_episodes):
+            next_obs, _ = env.reset()
+            next_obs = torch.Tensor(next_obs).to(device).unsqueeze(0)
+            next_done = torch.zeros(args.num_envs).to(device)
+            next_lstm_state = (
+                torch.zeros(agent.lstm.num_layers, 1, agent.lstm.hidden_size).to(device),
+                torch.zeros(agent.lstm.num_layers, 1, agent.lstm.hidden_size).to(device),
+            )
+
+            done = False
+            while not done:
+                action, logprob, _, value, next_lstm_state = agent.get_action_and_value(next_obs, next_lstm_state, next_done)
+                next_obs, reward, done, trunc, info = env.step(action.item())
+                next_obs = torch.Tensor(next_obs).to(device).unsqueeze(0)
+                env.render()
+            if verbose:
+                print(f'Episode {i} finished with reward {reward}')
+            rewards.append(reward)
+
+        rewards_all[level_name] = rewards
+        if verbose:
+            print(level_name)
+            print(f'Average reward: {np.mean(rewards):.4f} +- {np.std(rewards):.4f}\n')
+
+    if save_csv:
+        rewards_all = pd.DataFrame(rewards_all)
+        rewards_all.to_csv(f'minigrid_{args.seed}_{method}.csv')
+    
+    return {level_name: np.mean(rewards) for level_name, rewards in rewards_all.items()}
 
 
 render = False
@@ -218,51 +234,21 @@ max_difficulty = 25
 difficulties = np.arange(min_difficulty, max_difficulty, 1)
 difficulty = 25
 
+levels = ["Maze", "Maze2", "Labyrinth", "Labyrinth2", "SixteenRooms", "SixteenRooms2", "SmallCorridor", "LargeCorridor"]
+
 
 if __name__ == "__main__":
 
+    agent_name = 'minigrid__1__20240316_DR_10047488.pt'
+    method = 'CL'
+    num_episodes = 10
+
     args = parse_args()
+    # Seeding
     device = torch.device('cuda' if torch.cuda.is_available() and args.cuda else 'cpu')
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.backends.cudnn.deterministic = args.torch_deterministic
 
-    # Create environment
-    env = make_env()
-    agent = Agent(env).to(device)
-
-    # Load trained agent
-    agent.load_state_dict(torch.load('log/ppo/minigrid__1__20240306_100228_14999552.pt'))
-
-    # Test agent
-    num_episodes = 100
-    rewards = []
-
-    for i in range(num_episodes):
-        next_obs, _ = env.reset()
-        next_obs = torch.Tensor(next_obs).to(device).unsqueeze(0)
-        next_done = torch.zeros(args.num_envs).to(device)
-        next_lstm_state = (
-            torch.zeros(agent.lstm.num_layers, 1, agent.lstm.hidden_size).to(device),
-            torch.zeros(agent.lstm.num_layers, 1, agent.lstm.hidden_size).to(device),
-        )
-
-        done = False
-        while not done:
-            action, logprob, _, value, next_lstm_state = agent.get_action_and_value(next_obs, next_lstm_state, next_done)
-            next_obs, reward, done, trunc, info = env.step(action.item())
-            next_obs = torch.Tensor(next_obs).to(device).unsqueeze(0)
-            env.render()
-        print(f'Episode {i} finished with reward {reward}')
-        rewards.append(reward)
-
-        # Make sure the difficulty is within the bounds
-        difficulty = max(min_difficulty+1, min(max_difficulty, difficulty))
-        difficulties = np.arange(min_difficulty, difficulty, 1)
-
-        # Calculate weights for the difficulty
-        weights = stats.expon.pdf(difficulties, scale=2)[::-1]  # Exponential distribution
-        weights /= weights.sum()  # Make sum to 1
-
-        # Set the difficulty
-        set_difficulty(env, difficulties, weights)
-
-    print(f'Average reward: {np.mean(rewards):.4f} +- {np.std(rewards):.4f}')
-    
+    zero_shot_benchmark(levels, agent_name, method, num_episodes, save_csv=False)   
