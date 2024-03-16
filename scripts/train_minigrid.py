@@ -40,7 +40,7 @@ def parse_args():
                         help='the learning rate of the optimizer')
     parser.add_argument('--seed', type=int, default=1,
                         help='seed of the experiment')
-    parser.add_argument('--total-timesteps', type=int, default=15_000_000,
+    parser.add_argument('--total-timesteps', type=int, default=10_050_000,
                         help='total timesteps of the experiments')
     parser.add_argument('--torch-deterministic', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
                         help='if toggled, `torch.backends.cudnn.deterministic=False`')
@@ -395,8 +395,8 @@ if __name__ == "__main__":
                             difficulties = np.arange(min_difficulty, difficulty, 1)
 
                             # Calculate weights for the difficulty
-                            weights = np.ones(difficulties.shape[0])  # Uniform distribution
-                            #weights = stats.expon.pdf(difficulties, scale=5)[::-1]  # Exponential distribution
+                            #weights = np.ones(difficulties.shape[0])  # Uniform distribution
+                            weights = stats.expon.pdf(difficulties, scale=5)[::-1]  # Exponential distribution
                             weights /= weights.sum()  # Make sum to 1
 
                             d = np.random.choice(difficulties, p=weights)
