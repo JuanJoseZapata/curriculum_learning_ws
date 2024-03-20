@@ -318,9 +318,9 @@ if __name__ == "__main__":
     cooldown = 0
 
     # Load dataset with mazes and path lengths
-    X_maze = np.load("scripts/VAE/MiniGrid/grids_50k_40-blocks.npy")
-    X_pos = np.load("scripts/VAE/MiniGrid/pos_50k_40-blocks.npy")
-    Y = np.load("scripts/VAE/MiniGrid/path_lengths_50k_40-blocks.npy")
+    X_maze = np.load("scripts/VAE/MiniGrid/grids_200k_40-blocks.npy")
+    X_pos = np.load("scripts/VAE/MiniGrid/pos_200k_40-blocks.npy")
+    Y = np.load("scripts/VAE/MiniGrid/path_lengths_200k_40-blocks.npy")
     # Remove outer walls
     X_maze = X_maze[:, 1:-1, 1:-1, :]
     X_pos = X_pos - 1
