@@ -163,7 +163,7 @@ vae_model = None
 def make_env(args):
         env = minigrid_env.Env(size=15, agent_view_size=7,
                                num_tiles=40, level=args.level_name,
-                               vae=vae_model,
+                               max_steps=250, vae=vae_model,
                                render_mode=render_mode)
         env = PartialObsWrapper(env)
         env.action_space.seed(args.seed)
@@ -239,11 +239,13 @@ levels = ["Maze", "Maze2", "Labyrinth", "Labyrinth2", "SixteenRooms", "SixteenRo
 
 if __name__ == "__main__":
 
-    agent_name = 'minigrid__1__20240316_DR_10047488.pt'
-    method = 'CL'
-    num_episodes = 10
-
     args = parse_args()
+
+    agent_name = 'minigrid__1__20240316_CL_8552448.pt'
+    method = 'CL'
+    num_episodes = 20
+    args.seed = 2
+    
     # Seeding
     device = torch.device('cuda' if torch.cuda.is_available() and args.cuda else 'cpu')
     random.seed(args.seed)
@@ -251,4 +253,4 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     torch.backends.cudnn.deterministic = args.torch_deterministic
 
-    zero_shot_benchmark(levels, agent_name, method, num_episodes, save_csv=False)   
+    zero_shot_benchmark(args, levels, agent_name, method, num_episodes, save_csv=True, verbose=1)   

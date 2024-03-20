@@ -38,9 +38,9 @@ def parse_args():
                         help='the name of this experiment')
     parser.add_argument('--gym-id', type=str, default="MiniGrid-15x15",
                         help='the id of the gym environment')
-    parser.add_argument('--learning-rate', type=float, default=2e-4,
+    parser.add_argument('--learning-rate', type=float, default=1e-4,
                         help='the learning rate of the optimizer')
-    parser.add_argument('--seed', type=int, default=1,
+    parser.add_argument('--seed', type=int, default=3,
                         help='seed of the experiment')
     parser.add_argument('--total-timesteps', type=int, default=10_050_000,
                         help='total timesteps of the experiments')
@@ -94,7 +94,7 @@ def parse_args():
                           help="Toggle learning rate annealing for policy and value networks")
     parser.add_argument('--clip-vloss', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
                           help='Toggles wheter or not to use a clipped loss for the value function, as per the paper.')
-    parser.add_argument("--curriculum", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
+    parser.add_argument("--curriculum", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="Whether to use curriculum learning")
 
     args = parser.parse_args()
