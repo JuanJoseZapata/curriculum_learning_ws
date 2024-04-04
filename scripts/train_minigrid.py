@@ -28,6 +28,8 @@ from collections import deque
 import scipy.stats as stats
 import json
 
+from test_minigrid import zero_shot_benchmark
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='PPO agent')
@@ -36,9 +38,9 @@ def parse_args():
                         help='the name of this experiment')
     parser.add_argument('--gym-id', type=str, default="MiniGrid-15x15",
                         help='the id of the gym environment')
-    parser.add_argument('--learning-rate', type=float, default=2e-4,
+    parser.add_argument('--learning-rate', type=float, default=1e-4,
                         help='the learning rate of the optimizer')
-    parser.add_argument('--seed', type=int, default=1,
+    parser.add_argument('--seed', type=int, default=3,
                         help='seed of the experiment')
     parser.add_argument('--total-timesteps', type=int, default=10_050_000,
                         help='total timesteps of the experiments')
@@ -219,17 +221,18 @@ if __name__ == "__main__":
     print(args)
 
     if args.curriculum:
-        from VAE.MiniGrid.VAE import VAE
+        # from VAE.MiniGrid.VAE import VAE
 
-        vae_path = 'scripts/VAE/MiniGrid/models/VAE_MiniGrid_latent-dim-24_25-blocks.pt'
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # vae_path = 'scripts/VAE/MiniGrid/models/VAE_MiniGrid_latent-dim-24_25-blocks.pt'
+        # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        input_dim = (25 + 2)*2 + 1  # (25 blocks + 1 player position + 1 goal position) + 1 complexity
-        hidden_dim = 128
-        latent_dim = 24
-        vae_model = VAE(input_dim, hidden_dim, latent_dim).to(device)
-        vae_model.load_state_dict(torch.load(vae_path))
-        vae_model.eval()
+        # input_dim = (25 + 2)*2 + 1  # (25 blocks + 1 player position + 1 goal position) + 1 complexity
+        # hidden_dim = 128
+        # latent_dim = 24
+        # vae_model = VAE(input_dim, hidden_dim, latent_dim).to(device)
+        # vae_model.load_state_dict(torch.load(vae_path))
+        # vae_model.eval()
+        vae_model = None
     else:
         vae_model = None
 
@@ -244,7 +247,7 @@ if __name__ == "__main__":
     render_mode = "human" if args.render else None
 
     def make_env():
-        env = minigrid_env.Env(size=15, agent_view_size=7, num_tiles=25,
+        env = minigrid_env.Env(size=15, agent_view_size=7, num_tiles=40,
                                max_steps=250, render_mode=render_mode, vae=vae_model,
                                training=True)
         env = PartialObsWrapper(env)
@@ -302,7 +305,7 @@ if __name__ == "__main__":
     dones = torch.zeros((args.num_steps, args.num_envs)).to(device)
     values = torch.zeros((args.num_steps, args.num_envs)).to(device)
 
-    N = 500
+    N = 400
     running_reward = deque([0 for _ in range(N)], maxlen=N)
     min_difficulty = 3
     max_difficulty = 40
@@ -315,9 +318,9 @@ if __name__ == "__main__":
     cooldown = 0
 
     # Load dataset with mazes and path lengths
-    X_maze = np.load("scripts/VAE/MiniGrid/grids_50k_40-blocks.npy")
-    X_pos = np.load("scripts/VAE/MiniGrid/pos_50k_40-blocks.npy")
-    Y = np.load("scripts/VAE/MiniGrid/path_lengths_50k_40-blocks.npy")
+    X_maze = np.load("scripts/VAE/MiniGrid/grids_200k_40-blocks.npy")
+    X_pos = np.load("scripts/VAE/MiniGrid/pos_200k_40-blocks.npy")
+    Y = np.load("scripts/VAE/MiniGrid/path_lengths_200k_40-blocks.npy")
     # Remove outer walls
     X_maze = X_maze[:, 1:-1, 1:-1, :]
     X_pos = X_pos - 1
@@ -379,7 +382,7 @@ if __name__ == "__main__":
                         if args.curriculum:
 
                             # Increase difficulty if the running reward is greater than 0.8
-                            if np.mean(running_reward) > 0.85 and cooldown == 0:
+                            if np.mean(running_reward) > 0.82 and cooldown == 0:
                                 difficulty += 1
                                 cooldown = 2*N
                             # Decrease difficulty if the running reward is less than 0.4
@@ -420,6 +423,12 @@ if __name__ == "__main__":
                             # set_difficulty(envs, difficulties, weights)
 
                             #break
+
+                        else:
+                            # Set maze and positions
+                            envs.unwrapped.envs[i].env.bit_map = None
+                            envs.unwrapped.envs[i].env.agent_start_pos = None
+                            envs.unwrapped.envs[i].env.goal_pos = None
 
         # bootstrap value if not done
         with torch.no_grad():
@@ -532,7 +541,19 @@ if __name__ == "__main__":
         # Save model checkpoint
         checkpoint_interval = args.num_iterations // 100
         if iteration % checkpoint_interval == 0:
+            # Save model
             torch.save(agent.state_dict(), f"log/ppo/{run_name}_{global_step}.pt")
+            # Test zero shot performance
+            print("Testing zero shot performance...")
+            rewards_zero_shot = zero_shot_benchmark(args,
+                                                    levels=["Maze", "Maze2", "Labyrinth", "Labyrinth2"],
+                                                    agent_name=f'{run_name}_{global_step}.pt',
+                                                    method=method,
+                                                    num_episodes=5,
+                                                    save_csv=False,
+                                                    verbose=1)
+            for level_name, reward in rewards_zero_shot.items():
+                writer.add_scalar(f"zero_shot/{level_name}", reward, global_step)
 
     envs.close()
     writer.close()
