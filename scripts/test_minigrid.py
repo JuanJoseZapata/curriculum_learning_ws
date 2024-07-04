@@ -31,22 +31,20 @@ import pandas as pd
 def parse_args():
     parser = argparse.ArgumentParser(description='PPO agent')
     # Common arguments
-    parser.add_argument('--exp-name', type=str, default=os.path.basename(__file__).rstrip(".py"),
-                        help='the name of this experiment')
-    parser.add_argument('--gym-id', type=str, default="MiniGrid-15x15",
-                        help='the id of the gym environment')
     parser.add_argument('--seed', type=int, default=1,
                         help='seed of the experiment')
     parser.add_argument('--torch-deterministic', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
                         help='if toggled, `torch.backends.cudnn.deterministic=False`')
     parser.add_argument('--cuda', type=lambda x:bool(strtobool(x)), default=True, nargs='?', const=True,
                         help='if toggled, cuda will not be enabled by default')
+    parser.add_argument("--num-episodes", type=int, default=10,
+        help="number of episodes to test")
     parser.add_argument("--level-name", type=str, default=None,
         help="Zero-shot level name")
+    parser.add_argument("--model-path", type=str, default=None,
+        help="path to the model to be tested")
 
     # Algorithm specific arguments
-    parser.add_argument('--num-minibatches', type=int, default=4,
-                        help='the number of mini batch')
     parser.add_argument('--num-envs', type=int, default=8,
                         help='the number of parallel game environment')
     parser.add_argument('--num-steps', type=int, default=128,
@@ -54,7 +52,6 @@ def parse_args():
 
     args = parser.parse_args()
     args.batch_size = int(args.num_envs * args.num_steps)
-    args.minibatch_size = int(args.batch_size // args.num_minibatches)
     if not args.seed:
         args.seed = int(time.time())
 
@@ -190,7 +187,7 @@ def zero_shot_benchmark(args, levels, agent_name, method, num_episodes=10, save_
 
         # Load trained agent
         
-        agent.load_state_dict(torch.load(f'log/ppo/{agent_name}'))  #minigrid__1__20240315_CL_10027008
+        agent.load_state_dict(torch.load(agent_name))  #minigrid__1__20240315_CL_10027008
 
         # Test agent
         rewards = []
@@ -233,7 +230,7 @@ def random_levels(args, agent_name, num_episodes=10, verbose=0):
 
     # Load trained agent
     
-    agent.load_state_dict(torch.load(f'log/ppo/{agent_name}'))  #minigrid__1__20240315_CL_10027008
+    agent.load_state_dict(torch.load(agent_name))  #minigrid__1__20240315_CL_10027008
 
     # Test agent
     rewards = []
@@ -277,9 +274,9 @@ if __name__ == "__main__":
 
     args = parse_args()
 
-    agent_name = 'minigrid__1__20240315_DR_14999552.pt' # 'minigrid__1__20240316_CL_8552448.pt'
+    args.model_path = 'log/ppo/MiniGrid/minigrid__2__20240316_CL.pt'
     method = 'CL'
-    num_episodes = 20
+    args.num_episodes = 20
     args.seed = 2
     
     # Seeding
@@ -289,5 +286,5 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     torch.backends.cudnn.deterministic = args.torch_deterministic
 
-    #zero_shot_benchmark(args, levels, agent_name, method, num_episodes, save_csv=True, verbose=1)
-    random_levels(args, agent_name, verbose=1)
+    #zero_shot_benchmark(args, levels, agent_name, method, args.num_episodes, save_csv=True, verbose=1)
+    random_levels(args, args.model_path, num_episodes=args.num_episodes, verbose=1)
