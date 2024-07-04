@@ -45,7 +45,7 @@ def parse_args():
         help="path to the model to be tested")
 
     # Algorithm specific arguments
-    parser.add_argument('--num-envs', type=int, default=8,
+    parser.add_argument('--num-envs', type=int, default=1,
                         help='the number of parallel game environment')
     parser.add_argument('--num-steps', type=int, default=128,
                         help='the number of steps per game environment')
@@ -253,6 +253,7 @@ def random_levels(args, agent_name, num_episodes=10, verbose=0):
 
         if verbose:
             print(f'Episode {i} finished with reward {reward}')
+            print(next_obs.shape)
         rewards.append(reward)
 
     if verbose:
