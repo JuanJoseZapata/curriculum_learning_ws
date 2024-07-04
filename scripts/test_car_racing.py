@@ -81,7 +81,7 @@ def make_env():
     if args.track_name is None and args.bezier:
         print("Bezier tracks")
         env = multi_car_racing_bezier.parallel_env(n_agents=args.num_agents, render_mode=render_mode,
-                                                   use_random_direction=False,
+                                                   use_random_direction=True,
                                                    discrete_action_space=args.discrete_actions, verbose=1)
     elif args.track_name is None and not args.bezier:
         print("Default tracks")
@@ -161,13 +161,14 @@ if __name__ == "__main__":
 
     args = parse_args()
 
-    args.model_path = "log/ppo/multi_car_racing__1__20240310_163933_2400000.pt"
+    args.model_path = "log/ppo/multi_car_racing__3__20240325_CL_990000.pt"
     args.num_agents = 1
-    args.track_name = "Austria"
-    args.render = False
+    args.track_name = None
+    args.render = True if args.track_name is None else False
     args.num_episodes = 10
     difficulty = 0
     args.bezier = True
+    args.seed = 2
 
     print(args)
 
@@ -241,6 +242,8 @@ if __name__ == "__main__":
 
             # Set new control points
             set_control_points(envs, control_points)
+        elif vae_model is None and args.track_name is None:
+            set_control_points(envs, None)
     
     if args.track_name is not None:
         print(f"Track: {args.track_name}")

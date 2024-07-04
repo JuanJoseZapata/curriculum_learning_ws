@@ -164,7 +164,7 @@ def make_env(args):
         env = minigrid_env.Env(size=15, agent_view_size=7,
                                num_tiles=40, level=args.level_name,
                                max_steps=250, vae=vae_model,
-                               render_mode=render_mode)
+                               render_mode=render_mode, training=False)
         env = PartialObsWrapper(env)
         env.action_space.seed(args.seed)
         env.observation_space.seed(args.seed)
@@ -225,8 +225,44 @@ def zero_shot_benchmark(args, levels, agent_name, method, num_episodes=10, save_
     
     return {level_name: np.mean(rewards) for level_name, rewards in rewards_all.items()}
 
+def random_levels(args, agent_name, num_episodes=10, verbose=0):
 
-render = False
+    # Create environment
+    env = make_env(args)
+    agent = Agent(env).to(device)
+
+    # Load trained agent
+    
+    agent.load_state_dict(torch.load(f'log/ppo/{agent_name}'))  #minigrid__1__20240315_CL_10027008
+
+    # Test agent
+    rewards = []
+
+    for i in range(num_episodes):
+        next_obs, _ = env.reset()
+        next_obs = torch.Tensor(next_obs).to(device).unsqueeze(0)
+        next_done = torch.zeros(args.num_envs).to(device)
+        next_lstm_state = (
+            torch.zeros(agent.lstm.num_layers, 1, agent.lstm.hidden_size).to(device),
+            torch.zeros(agent.lstm.num_layers, 1, agent.lstm.hidden_size).to(device),
+        )
+
+        done = False
+        while not done:
+            action, logprob, _, value, next_lstm_state = agent.get_action_and_value(next_obs, next_lstm_state, next_done)
+            next_obs, reward, done, trunc, info = env.step(action.item())
+            next_obs = torch.Tensor(next_obs).to(device).unsqueeze(0)
+            env.render()
+
+        if verbose:
+            print(f'Episode {i} finished with reward {reward}')
+        rewards.append(reward)
+
+    if verbose:
+        print(f'Average reward: {np.mean(rewards):.4f} +- {np.std(rewards):.4f}\n')
+
+
+render = True
 render_mode = "human" if render else None
 
 min_difficulty = 2
@@ -241,7 +277,7 @@ if __name__ == "__main__":
 
     args = parse_args()
 
-    agent_name = 'minigrid__1__20240316_CL_8552448.pt'
+    agent_name = 'minigrid__1__20240315_DR_14999552.pt' # 'minigrid__1__20240316_CL_8552448.pt'
     method = 'CL'
     num_episodes = 20
     args.seed = 2
@@ -253,4 +289,5 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     torch.backends.cudnn.deterministic = args.torch_deterministic
 
-    zero_shot_benchmark(args, levels, agent_name, method, num_episodes, save_csv=True, verbose=1)   
+    #zero_shot_benchmark(args, levels, agent_name, method, num_episodes, save_csv=True, verbose=1)
+    random_levels(args, agent_name, verbose=1)
