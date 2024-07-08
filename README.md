@@ -3,7 +3,7 @@
 Juan José Zapata González\
 Karlsruhe Institute of Technology (KIT)\
 Institute of Measurement and Control Systems (MRT)\
-2023
+2024
 ___
 
 This repository contains the implementation of my master's thesis on curriculum learning for deep multi-agent reinforcement learning.
@@ -127,7 +127,7 @@ Available arguments for the testing script:
 ## MiniGrid
 ![image](https://github.com/JuanJoseZapata/curriculum_learning_ws/assets/66514932/0f1936fc-b54c-4303-b636-a1a40fc97180)
 
-The second environment used in this work is the `MiniGrid` environment. It is a customized version of the original [`MiniGrid`](https://minigrid.farama.org/) environment from Farama Foundation.
+The second environment used in this work is `MiniGrid`. It is a customized version of the original [`MiniGrid`](https://minigrid.farama.org/) environment from Farama Foundation.
 
 This environment is a simple grid world environment with a 2D grid of tiles. The agent can move forward or change direction (left or right). The objective of the agent is to reach the goal tile in the smallest number of steps. The goal of the agent is to reach the goal tile while avoiding obstacles and collecting rewards. The environment is a single-agent environment.
 
